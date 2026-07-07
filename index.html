@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>まるばつ日程調整</title>
+<style>
+:root {
+    --bg: #eef1f6;
+    --card: #ffffff;
+    --ink: #1f2733;
+    --muted: #6b7684;
+    --line: #e2e6ee;
+    --accent: #4f46e5;
+    --accent-soft: #eef0fe;
+    --ok: #16a34a;
+    --ok-soft: #e7f6ec;
+    --ng: #dc2626;
+    --ng-soft: #fdecec;
+    --best: #f59e0b;
+    --best-soft: #fff5e0;
+    --shadow: 0 10px 30px rgba(20, 30, 60, .08);
+    --radius: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f141c;
+        --card: #171e29;
+        --ink: #e7edf5;
+        --muted: #93a1b3;
+        --line: #26303e;
+        --accent: #8b93ff;
+        --accent-soft: #1e2440;
+        --ok: #4ade80;
+        --ok-soft: #14301f;
+        --ng: #f87171;
+        --ng-soft: #351a1a;
+        --best: #fbbf24;
+        --best-soft: #33290f;
+        --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Segoe UI', 'Yu Gothic UI', 'Hiragino Sans', system-ui, sans-serif;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+}
+
+.wrap { max-width: 880px; margin: 0 auto; padding: 22px 16px 72px; }
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+.brand .logo {
+    display: grid;
+    place-items: center;
+    width: 40px; height: 40px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    color: #fff; font-weight: 900; font-size: 1.1rem;
+    box-shadow: var(--shadow);
+    letter-spacing: -1px;
+}
+.brand h1 { font-size: 1.28rem; font-weight: 800; letter-spacing: .01em; }
+.brand p { font-size: .78rem; color: var(--muted); }
+
+.card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 18px;
+}
+
+.card h2 {
+    font-size: .8rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+}
+
+label { display: block; font-size: .82rem; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
+
+input[type=text], textarea {
+    width: 100%;
+    padding: 11px 13px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--ink);
+    font: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+input[type=text]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+textarea { resize: vertical; min-height: 120px; line-height: 1.7; }
+.field { margin-bottom: 16px; }
+.hint { font-size: .74rem; color: var(--muted); margin-top: 5px; }
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 11px 20px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 800;
+    cursor: pointer;
+    transition: transform .12s ease, filter .12s ease, background .12s ease;
+}
+.btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.btn:active { transform: none; }
+.btn.ghost { background: transparent; color: var(--accent); border-color: var(--line); }
+.btn.ghost:hover { background: var(--accent-soft); }
+.btn.sm { padding: 6px 12px; font-size: .8rem; }
+.btn.danger { background: transparent; color: var(--ng); border-color: var(--line); }
+.btn.danger:hover { background: var(--ng-soft); }
+
+.row-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* Event header */
+.event-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.event-head h2 { font-size: 1.4rem; letter-spacing: 0; text-transform: none; color: var(--ink); margin: 0 0 4px; }
+.event-note { color: var(--muted); font-size: .92rem; white-space: pre-wrap; }
+.meta { font-size: .8rem; color: var(--muted); margin-top: 8px; }
+
+.best-banner {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--best-soft);
+    border: 1px solid color-mix(in srgb, var(--best) 40%, transparent);
+    font-size: .9rem;
+    font-weight: 700;
+}
+.best-banner b { color: var(--best); }
+
+/* Results table */
+.table-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+th, td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+thead th {
+    font-size: .8rem; color: var(--muted); font-weight: 800;
+    position: sticky; top: 0; background: var(--card);
+    border-bottom: 2px solid var(--line);
+}
+tbody th, tfoot th { text-align: left; font-weight: 700; }
+.col-name { text-align: left; min-width: 120px; position: sticky; left: 0; background: var(--card); z-index: 1; }
+thead .col-name { z-index: 2; }
+
+.mark { font-weight: 900; font-size: 1.1rem; }
+.mark.ok { color: var(--ok); }
+.mark.ng { color: var(--ng); }
+td.ok { background: var(--ok-soft); }
+td.ng { background: var(--ng-soft); }
+
+th.best, td.best { background: var(--best-soft); }
+tfoot td { font-weight: 800; }
+.count-ok { color: var(--ok); }
+
+.name-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.name-cell .tools { display: inline-flex; gap: 4px; opacity: .8; }
+.icon-btn {
+    border: none; background: transparent; cursor: pointer; color: var(--muted);
+    font-size: .82rem; padding: 3px 5px; border-radius: 6px;
+}
+.icon-btn:hover { background: var(--bg); color: var(--ink); }
+.icon-btn.del:hover { color: var(--ng); }
+
+.empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 20px 0; }
+
+/* Respond form */
+.opt-toggles { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.opt-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
+}
+.opt-toggle .opt-label { font-size: .9rem; }
+.seg2 { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
+.seg2 button {
+    border: none; background: transparent; cursor: pointer;
+    padding: 7px 16px; font: inherit; font-weight: 900; font-size: 1.05rem; color: var(--muted);
+    transition: background .12s ease, color .12s ease;
+}
+.seg2 button.on-ok { background: var(--ok-soft); color: var(--ok); }
+.seg2 button.on-ng { background: var(--ng-soft); color: var(--ng); }
+
+.toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--card);
+    padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: .88rem;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.footer-note { text-align: center; color: var(--muted); font-size: .74rem; margin-top: 26px; }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <div class="brand">
+        <div class="logo">○✕</div>
+        <div>
+            <h1>まるばつ日程調整</h1>
+            <p>○ か ✕ だけで出欠をとる、サーバー不要の日程調整</p>
+        </div>
+    </div>
+
+    <!-- Create / edit event -->
+    <section class="card" id="editorCard">
+        <h2 id="editorTitle">イベントを作成</h2>
+        <div class="field">
+            <label for="titleInput">タイトル</label>
+            <input id="titleInput" type="text" placeholder="例）新年会の日程">
+        </div>
+        <div class="field">
+            <label for="noteInput">メモ（任意）</label>
+            <input id="noteInput" type="text" placeholder="例）場所は未定。第一希望を教えてください">
+        </div>
+        <div class="field">
+            <label for="optionsInput">候補（1行に1つ）</label>
+            <textarea id="optionsInput" placeholder="7/10(土) 19:00&#10;7/11(日) 12:00&#10;7/12(月) 19:30"></textarea>
+            <p class="hint">改行で区切って候補を入力してください。出欠は各候補に対して ○ / ✕ で回答します。</p>
+        </div>
+        <div class="row-actions">
+            <button class="btn" id="saveEventBtn">イベントを作成</button>
+            <button class="btn ghost hidden" id="cancelEditBtn">キャンセル</button>
+        </div>
+    </section>
+
+    <!-- Event view -->
+    <section class="card hidden" id="eventCard">
+        <div class="event-head">
+            <div>
+                <h2 id="evTitle"></h2>
+                <div class="event-note" id="evNote"></div>
+                <div class="meta" id="evMeta"></div>
+            </div>
+            <div class="row-actions">
+                <button class="btn sm ghost" id="editEventBtn">編集</button>
+                <button class="btn sm ghost" id="newEventBtn">新規作成</button>
+            </div>
+        </div>
+        <div class="best-banner hidden" id="bestBanner"></div>
+    </section>
+
+    <!-- Results -->
+    <section class="card hidden" id="resultsCard">
+        <h2>集計結果</h2>
+        <div class="table-scroll">
+            <table id="resultsTable"></table>
+        </div>
+        <p class="empty hidden" id="noResp">まだ回答がありません。下のフォームから出欠を入力してください。</p>
+    </section>
+
+    <!-- Respond -->
+    <section class="card hidden" id="respondCard">
+        <h2 id="respondTitle">出欠を入力</h2>
+        <div class="field">
+            <label for="nameInput">お名前</label>
+            <input id="nameInput" type="text" placeholder="例）田中" maxlength="24">
+        </div>
+        <div id="toggles" class="opt-toggles"></div>
+        <div class="row-actions" style="margin-top:16px">
+            <button class="btn" id="submitRespBtn">登録する</button>
+            <button class="btn ghost hidden" id="cancelRespBtn">編集をやめる</button>
+        </div>
+    </section>
+
+    <!-- Share -->
+    <section class="card hidden" id="shareCard">
+        <h2>共有</h2>
+        <p class="hint" style="margin:0 0 12px">このリンクを送ると、相手も同じ表を見て回答できます。回答が増えるたびにリンクは更新されるので、最新のリンクを共有してください。</p>
+        <div class="row-actions">
+            <button class="btn" id="copyLinkBtn">🔗 共有リンクをコピー</button>
+            <span class="hint" id="lenHint"></span>
+        </div>
+    </section>
+
+    <p class="footer-note">データはサーバーに保存されず、URLとこの端末内にのみ保持されます。</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const $ = (id) => document.getElementById(id);
+
+/* ---------- state ---------- */
+// state = { t: title, d: note, o: [options], p: [ { n: name, a: [1|0,...] } ] }
+let state = null;
+let editingResp = -1;   // participant index being edited, or -1
+let draft = [];         // working answers for the respond form (1 = ○, 0 = ✕)
+
+const STORE_KEY = 'marubatsu-chousei';
+
+/* ---------- URL-safe base64 (handles Japanese) ---------- */
+function encodeState(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = '';
+    bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decodeState(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function load() {
+    const hash = location.hash.replace(/^#/, '');
+    if (hash) {
+        try { return decodeState(hash); } catch (e) { /* fall through */ }
+    }
+    try {
+        const raw = localStorage.getItem(STORE_KEY);
+        if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return null;
+}
+
+function save() {
+    if (!state) return;
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+    const encoded = encodeState(state);
+    history.replaceState(null, '', '#' + encoded);
+    $('lenHint').textContent = 'リンク長: ' + (location.href.length) + ' 文字';
+}
+
+/* ---------- toast ---------- */
+let toastTimer = null;
+function toast(msg) {
+    $('toast').textContent = msg;
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1800);
+}
+
+/* ---------- event editor ---------- */
+function openEditor(isEdit) {
+    $('editorTitle').textContent = isEdit ? 'イベントを編集' : 'イベントを作成';
+    $('saveEventBtn').textContent = isEdit ? '更新する' : 'イベントを作成';
+    $('cancelEditBtn').classList.toggle('hidden', !isEdit);
+    if (isEdit && state) {
+        $('titleInput').value = state.t;
+        $('noteInput').value = state.d || '';
+        $('optionsInput').value = state.o.join('\n');
+    } else {
+        $('titleInput').value = '';
+        $('noteInput').value = '';
+        $('optionsInput').value = '';
+    }
+    $('editorCard').classList.remove('hidden');
+    $('editorCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function saveEvent() {
+    const title = $('titleInput').value.trim();
+    const note = $('noteInput').value.trim();
+    const options = $('optionsInput').value.split('\n').map((s) => s.trim()).filter(Boolean);
+
+    if (!title) { toast('タイトルを入力してください'); $('titleInput').focus(); return; }
+    if (options.length === 0) { toast('候補を1つ以上入力してください'); $('optionsInput').focus(); return; }
+
+    if (!state) {
+        state = { t: title, d: note, o: options, p: [] };
+    } else {
+        // keep answers aligned to the new option count (pad with ○, truncate extras)
+        state.p.forEach((person) => {
+            const a = options.map((_, i) => (i < person.a.length ? person.a[i] : 1));
+            person.a = a;
+        });
+        state.t = title; state.d = note; state.o = options;
+    }
+
+    save();
+    $('editorCard').classList.add('hidden');
+    render();
+}
+
+/* ---------- responding ---------- */
+function buildToggles() {
+    const el = $('toggles');
+    el.innerHTML = '';
+    state.o.forEach((opt, i) => {
+        const wrap = document.createElement('div');
+        wrap.className = 'opt-toggle';
+        const label = document.createElement('span');
+        label.className = 'opt-label';
+        label.textContent = opt;
+        const seg = document.createElement('div');
+        seg.className = 'seg2';
+        const ok = document.createElement('button');
+        ok.type = 'button'; ok.textContent = '○';
+        const ng = document.createElement('button');
+        ng.type = 'button'; ng.textContent = '✕';
+        const paint = () => {
+            ok.className = draft[i] === 1 ? 'on-ok' : '';
+            ng.className = draft[i] === 0 ? 'on-ng' : '';
+        };
+        ok.addEventListener('click', () => { draft[i] = 1; paint(); });
+        ng.addEventListener('click', () => { draft[i] = 0; paint(); });
+        paint();
+        seg.append(ok, ng);
+        wrap.append(label, seg);
+        el.appendChild(wrap);
+    });
+}
+
+function startRespond(editIdx) {
+    editingResp = (typeof editIdx === 'number') ? editIdx : -1;
+    if (editingResp >= 0) {
+        const person = state.p[editingResp];
+        $('nameInput').value = person.n;
+        draft = person.a.slice();
+        $('respondTitle').textContent = '回答を編集';
+        $('submitRespBtn').textContent = '更新する';
+        $('cancelRespBtn').classList.remove('hidden');
+    } else {
+        $('nameInput').value = '';
+        draft = state.o.map(() => 1); // default all ○
+        $('respondTitle').textContent = '出欠を入力';
+        $('submitRespBtn').textContent = '登録する';
+        $('cancelRespBtn').classList.add('hidden');
+    }
+    buildToggles();
+    if (editingResp >= 0) $('respondCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function submitResp() {
+    const name = $('nameInput').value.trim();
+    if (!name) { toast('お名前を入力してください'); $('nameInput').focus(); return; }
+    const entry = { n: name, a: draft.slice() };
+    if (editingResp >= 0) {
+        state.p[editingResp] = entry;
+        toast('回答を更新しました');
+    } else {
+        state.p.push(entry);
+        toast('登録しました');
+    }
+    save();
+    startRespond(-1);
+    render();
+}
+
+function deleteResp(idx) {
+    if (!confirm(state.p[idx].n + ' さんの回答を削除しますか？')) return;
+    state.p.splice(idx, 1);
+    if (editingResp === idx) startRespond(-1);
+    save();
+    render();
+}
+
+/* ---------- rendering ---------- */
+function optionCounts() {
+    return state.o.map((_, i) => state.p.reduce((sum, p) => sum + (p.a[i] === 1 ? 1 : 0), 0));
+}
+
+function render() {
+    if (!state) {
+        $('eventCard').classList.add('hidden');
+        $('resultsCard').classList.add('hidden');
+        $('respondCard').classList.add('hidden');
+        $('shareCard').classList.add('hidden');
+        if ($('editorCard').classList.contains('hidden')) openEditor(false);
+        return;
+    }
+
+    // header
+    $('eventCard').classList.remove('hidden');
+    $('resultsCard').classList.remove('hidden');
+    $('respondCard').classList.remove('hidden');
+    $('shareCard').classList.remove('hidden');
+    $('evTitle').textContent = state.t;
+    $('evNote').textContent = state.d || '';
+    $('evNote').classList.toggle('hidden', !state.d);
+    $('evMeta').textContent = `候補 ${state.o.length} 件 ・ 回答 ${state.p.length} 人`;
+
+    const counts = optionCounts();
+    const max = Math.max(0, ...counts);
+
+    // best banner
+    if (state.p.length > 0 && max > 0) {
+        const bestIdx = counts.map((c, i) => c === max ? i : -1).filter((i) => i >= 0);
+        const names = bestIdx.map((i) => `「${state.o[i]}」`).join('、');
+        $('bestBanner').innerHTML = `最有力候補: <b>${escapeHtml(names)}</b>（○ ${max} 人）`;
+        $('bestBanner').classList.remove('hidden');
+    } else {
+        $('bestBanner').classList.add('hidden');
+    }
+
+    // results table
+    renderTable(counts, max);
+
+    // respond toggles reflect current option set if not editing
+    if (editingResp < 0 && draft.length !== state.o.length) startRespond(-1);
+    else buildToggles();
+
+    save();
+}
+
+function renderTable(counts, max) {
+    const noResp = state.p.length === 0;
+    $('noResp').classList.toggle('hidden', !noResp);
+    const table = $('resultsTable');
+    table.classList.toggle('hidden', noResp);
+    if (noResp) { table.innerHTML = ''; return; }
+
+    const isBest = (i) => counts[i] === max && max > 0;
+
+    let head = '<thead><tr><th class="col-name">参加者</th>';
+    state.o.forEach((opt, i) => {
+        head += `<th class="${isBest(i) ? 'best' : ''}">${escapeHtml(opt)}</th>`;
+    });
+    head += '</tr></thead>';
+
+    let body = '<tbody>';
+    state.p.forEach((p, idx) => {
+        body += `<tr><th class="col-name"><span class="name-cell"><span>${escapeHtml(p.n)}</span>` +
+                `<span class="tools">` +
+                `<button class="icon-btn" data-edit="${idx}" title="編集">✎</button>` +
+                `<button class="icon-btn del" data-del="${idx}" title="削除">🗑</button>` +
+                `</span></span></th>`;
+        state.o.forEach((_, i) => {
+            const ok = p.a[i] === 1;
+            body += `<td class="${ok ? 'ok' : 'ng'} ${isBest(i) ? 'best' : ''}"><span class="mark ${ok ? 'ok' : 'ng'}">${ok ? '○' : '✕'}</span></td>`;
+        });
+        body += '</tr>';
+    });
+    body += '</tbody>';
+
+    let foot = '<tfoot><tr><th class="col-name">○ 合計</th>';
+    counts.forEach((c, i) => {
+        foot += `<td class="${isBest(i) ? 'best' : ''}"><span class="count-ok">${c}</span></td>`;
+    });
+    foot += '</tr></tfoot>';
+
+    table.innerHTML = head + body + foot;
+
+    table.querySelectorAll('[data-edit]').forEach((b) =>
+        b.addEventListener('click', () => startRespond(+b.dataset.edit)));
+    table.querySelectorAll('[data-del]').forEach((b) =>
+        b.addEventListener('click', () => deleteResp(+b.dataset.del)));
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/* ---------- share ---------- */
+async function copyLink() {
+    const url = location.href;
+    try {
+        await navigator.clipboard.writeText(url);
+        toast('リンクをコピーしました');
+    } catch (e) {
+        const ta = document.createElement('textarea');
+        ta.value = url; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); toast('リンクをコピーしました'); }
+        catch (_) { toast('コピーに失敗しました'); }
+        ta.remove();
+    }
+}
+
+/* ---------- wire up ---------- */
+$('saveEventBtn').addEventListener('click', saveEvent);
+$('cancelEditBtn').addEventListener('click', () => { $('editorCard').classList.add('hidden'); });
+$('editEventBtn').addEventListener('click', () => openEditor(true));
+$('newEventBtn').addEventListener('click', () => {
+    if (!confirm('新しいイベントを作成します。現在の内容は表示されなくなります（リンクを保存済みなら後で開けます）。よろしいですか？')) return;
+    state = null;
+    editingResp = -1;
+    history.replaceState(null, '', location.pathname);
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    render();
+    openEditor(false);
+});
+$('submitRespBtn').addEventListener('click', submitResp);
+$('cancelRespBtn').addEventListener('click', () => startRespond(-1));
+$('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitResp(); });
+$('copyLinkBtn').addEventListener('click', copyLink);
+window.addEventListener('hashchange', () => { state = load(); editingResp = -1; render(); });
+
+/* ---------- boot ---------- */
+state = load();
+if (state) { render(); } else { openEditor(false); }
+</script>
+</body>
+</html>
