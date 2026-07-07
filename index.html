@@ -128,6 +128,7 @@ textarea { resize: vertical; min-height: 120px; line-height: 1.7; }
 }
 .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .btn:active { transform: none; }
+.btn:disabled { opacity: .5; cursor: progress; transform: none; }
 .btn.ghost { background: transparent; color: var(--accent); border-color: var(--line); }
 .btn.ghost:hover { background: var(--accent-soft); }
 .btn.sm { padding: 6px 12px; font-size: .8rem; }
@@ -203,6 +204,8 @@ tfoot td { font-weight: 800; }
 .seg2 button.on-ok { background: var(--ok-soft); color: var(--ok); }
 .seg2 button.on-ng { background: var(--ng-soft); color: var(--ng); }
 
+.sync { font-size: .74rem; color: var(--muted); }
+
 .toast {
     position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
     background: var(--ink); color: var(--card);
@@ -222,7 +225,7 @@ tfoot td { font-weight: 800; }
         <div class="logo">○✕</div>
         <div>
             <h1>まるばつ日程調整</h1>
-            <p>○ か ✕ だけで出欠をとる、サーバー不要の日程調整</p>
+            <p>○ か ✕ だけで出欠をとる、みんなで共有できる日程調整</p>
         </div>
     </div>
 
@@ -290,14 +293,14 @@ tfoot td { font-weight: 800; }
     <!-- Share -->
     <section class="card hidden" id="shareCard">
         <h2>共有</h2>
-        <p class="hint" style="margin:0 0 12px">このリンクを送ると、相手も同じ表を見て回答できます。回答が増えるたびにリンクは更新されるので、最新のリンクを共有してください。</p>
+        <p class="hint" style="margin:0 0 12px">このリンクは<strong>ずっと同じ</strong>です。相手が回答すると自動で反映され、あなたの画面も数秒で更新されます。</p>
         <div class="row-actions">
             <button class="btn" id="copyLinkBtn">🔗 共有リンクをコピー</button>
-            <span class="hint" id="lenHint"></span>
+            <span class="sync" id="syncStatus"></span>
         </div>
     </section>
 
-    <p class="footer-note">データはサーバーに保存されず、URLとこの端末内にのみ保持されます。</p>
+    <p class="footer-note">回答は共有データベースに保存され、リンクを知っている人が閲覧・回答できます。</p>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -307,21 +310,21 @@ tfoot td { font-weight: 800; }
 
 const $ = (id) => document.getElementById(id);
 
+/* ---------- config ---------- */
+const DB_URL = 'https://taku-f8db6-default-rtdb.firebaseio.com';
+const STORE_KEY = 'marubatsu-chousei';
+const POLL_MS = 4000;
+
 /* ---------- state ---------- */
 // state = { t: title, d: note, o: [options], p: [ { n: name, a: [1|0,...] } ] }
 let state = null;
-let editingResp = -1;   // participant index being edited, or -1
-let draft = [];         // working answers for the respond form (1 = ○, 0 = ✕)
+let remoteId = null;      // Firebase event id (null = local only)
+let editingName = null;   // participant name being edited, or null
+let draft = [];           // working answers for the form (1 = ○, 0 = ✕)
+let pollTimer = null;
+let lastSynced = '';      // JSON of the last state we rendered
 
-const STORE_KEY = 'marubatsu-chousei';
-
-/* ---------- URL-safe base64 (handles Japanese) ---------- */
-function encodeState(obj) {
-    const bytes = new TextEncoder().encode(JSON.stringify(obj));
-    let bin = '';
-    bytes.forEach((b) => { bin += String.fromCharCode(b); });
-    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
+/* ---------- legacy share link (old full-state hash) ---------- */
 function decodeState(str) {
     const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
     const bin = atob(b64);
@@ -329,33 +332,59 @@ function decodeState(str) {
     return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-function load() {
-    const hash = location.hash.replace(/^#/, '');
-    if (hash) {
-        try { return decodeState(hash); } catch (e) { /* fall through */ }
-    }
-    try {
-        const raw = localStorage.getItem(STORE_KEY);
-        if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore */ }
+/* ---------- Firebase REST ---------- */
+async function dbGet(id) {
+    const res = await fetch(`${DB_URL}/events/${id}.json`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('GET ' + res.status);
+    return res.json();
+}
+async function dbPut(id, obj) {
+    const res = await fetch(`${DB_URL}/events/${id}.json`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj),
+    });
+    if (!res.ok) throw new Error('PUT ' + res.status);
+    return res.json();
+}
+function genId() {
+    return Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
+}
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* ---------- local cache ---------- */
+function cacheLocal() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ id: remoteId, state })); } catch (e) { /* ignore */ }
+}
+function loadCache() {
+    try { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } catch (e) { /* ignore */ }
     return null;
 }
 
-function save() {
-    if (!state) return;
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
-    const encoded = encodeState(state);
-    history.replaceState(null, '', '#' + encoded);
-    $('lenHint').textContent = 'リンク長: ' + (location.href.length) + ' 文字';
-}
-
-/* ---------- toast ---------- */
+/* ---------- toast / status ---------- */
 let toastTimer = null;
 function toast(msg) {
     $('toast').textContent = msg;
     $('toast').classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1800);
+}
+function setSync(txt) { $('syncStatus').textContent = txt; }
+
+/* ---------- remote commit (read → modify → write) ---------- */
+async function commit(mutate) {
+    if (DB_URL && remoteId) {
+        let latest;
+        try { latest = await dbGet(remoteId); } catch (e) { latest = null; }
+        if (!latest || !latest.o) latest = clone(state);
+        if (!latest.p) latest.p = [];
+        mutate(latest);
+        state = latest;
+        try { await dbPut(remoteId, state); setSync('🟢 同期済み'); }
+        catch (e) { setSync('⚠ オフライン'); toast('通信に失敗しました。あとで再度お試しください'); }
+    } else {
+        mutate(state);
+    }
+    cacheLocal();
+    render();
 }
 
 /* ---------- event editor ---------- */
@@ -376,7 +405,7 @@ function openEditor(isEdit) {
     $('editorCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function saveEvent() {
+async function saveEvent() {
     const title = $('titleInput').value.trim();
     const note = $('noteInput').value.trim();
     const options = $('optionsInput').value.split('\n').map((s) => s.trim()).filter(Boolean);
@@ -384,20 +413,38 @@ function saveEvent() {
     if (!title) { toast('タイトルを入力してください'); $('titleInput').focus(); return; }
     if (options.length === 0) { toast('候補を1つ以上入力してください'); $('optionsInput').focus(); return; }
 
-    if (!state) {
-        state = { t: title, d: note, o: options, p: [] };
-    } else {
-        // keep answers aligned to the new option count (pad with ○, truncate extras)
-        state.p.forEach((person) => {
-            const a = options.map((_, i) => (i < person.a.length ? person.a[i] : 1));
-            person.a = a;
-        });
-        state.t = title; state.d = note; state.o = options;
+    $('saveEventBtn').disabled = true;
+    try {
+        if (!state && !remoteId) {
+            // brand-new event
+            state = { t: title, d: note, o: options, p: [] };
+            if (DB_URL) {
+                remoteId = genId();
+                setSync('作成中…');
+                await dbPut(remoteId, state);
+                history.replaceState(null, '', '#' + remoteId);
+                setSync('🟢 同期済み');
+                startPolling();
+            }
+            cacheLocal();
+            $('editorCard').classList.add('hidden');
+            render();
+        } else {
+            // edit an existing event definition (keep answers, realign to new options)
+            await commit((s) => {
+                s.t = title; s.d = note; s.o = options;
+                s.p = (s.p || []).map((pp) => ({
+                    n: pp.n, a: options.map((_, i) => (i < pp.a.length ? pp.a[i] : 1)),
+                }));
+            });
+            $('editorCard').classList.add('hidden');
+        }
+    } catch (e) {
+        if (!state || !state.p) remoteId = null;
+        toast('保存に失敗しました。ネット接続を確認してください');
+    } finally {
+        $('saveEventBtn').disabled = false;
     }
-
-    save();
-    $('editorCard').classList.add('hidden');
-    render();
 }
 
 /* ---------- responding ---------- */
@@ -429,15 +476,16 @@ function buildToggles() {
     });
 }
 
-function startRespond(editIdx) {
-    editingResp = (typeof editIdx === 'number') ? editIdx : -1;
-    if (editingResp >= 0) {
-        const person = state.p[editingResp];
-        $('nameInput').value = person.n;
-        draft = person.a.slice();
+function startRespond(editName) {
+    editingName = editName || null;
+    if (editingName) {
+        const person = state.p.find((p) => p.n === editingName);
+        $('nameInput').value = person ? person.n : '';
+        draft = person ? person.a.slice() : state.o.map(() => 1);
         $('respondTitle').textContent = '回答を編集';
         $('submitRespBtn').textContent = '更新する';
         $('cancelRespBtn').classList.remove('hidden');
+        $('respondCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
         $('nameInput').value = '';
         draft = state.o.map(() => 1); // default all ○
@@ -446,31 +494,32 @@ function startRespond(editIdx) {
         $('cancelRespBtn').classList.add('hidden');
     }
     buildToggles();
-    if (editingResp >= 0) $('respondCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-function submitResp() {
+async function submitResp() {
     const name = $('nameInput').value.trim();
     if (!name) { toast('お名前を入力してください'); $('nameInput').focus(); return; }
-    const entry = { n: name, a: draft.slice() };
-    if (editingResp >= 0) {
-        state.p[editingResp] = entry;
-        toast('回答を更新しました');
-    } else {
-        state.p.push(entry);
-        toast('登録しました');
-    }
-    save();
-    startRespond(-1);
-    render();
+    const answers = draft.slice();
+    const prev = editingName;
+
+    $('submitRespBtn').disabled = true;
+    await commit((s) => {
+        s.p = s.p || [];
+        if (prev && prev !== name) s.p = s.p.filter((p) => p.n !== prev);
+        const a = s.o.map((_, i) => (i < answers.length ? answers[i] : 1));
+        const idx = s.p.findIndex((p) => p.n === name);
+        if (idx >= 0) s.p[idx] = { n: name, a };
+        else s.p.push({ n: name, a });
+    });
+    $('submitRespBtn').disabled = false;
+    toast(prev ? '回答を更新しました' : '登録しました');
+    startRespond(null);
 }
 
-function deleteResp(idx) {
-    if (!confirm(state.p[idx].n + ' さんの回答を削除しますか？')) return;
-    state.p.splice(idx, 1);
-    if (editingResp === idx) startRespond(-1);
-    save();
-    render();
+async function deleteResp(name) {
+    if (!confirm(name + ' さんの回答を削除しますか？')) return;
+    await commit((s) => { s.p = (s.p || []).filter((p) => p.n !== name); });
+    if (editingName === name) startRespond(null);
 }
 
 /* ---------- rendering ---------- */
@@ -480,19 +529,19 @@ function optionCounts() {
 
 function render() {
     if (!state) {
-        $('eventCard').classList.add('hidden');
-        $('resultsCard').classList.add('hidden');
-        $('respondCard').classList.add('hidden');
-        $('shareCard').classList.add('hidden');
+        ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.add('hidden'));
         if ($('editorCard').classList.contains('hidden')) openEditor(false);
         return;
     }
+    ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.remove('hidden'));
+    renderHeaderAndResults();
+    if (!editingName && draft.length !== state.o.length) startRespond(null);
+    else buildToggles();
+    lastSynced = JSON.stringify(state);
+    cacheLocal();
+}
 
-    // header
-    $('eventCard').classList.remove('hidden');
-    $('resultsCard').classList.remove('hidden');
-    $('respondCard').classList.remove('hidden');
-    $('shareCard').classList.remove('hidden');
+function renderHeaderAndResults() {
     $('evTitle').textContent = state.t;
     $('evNote').textContent = state.d || '';
     $('evNote').classList.toggle('hidden', !state.d);
@@ -501,24 +550,16 @@ function render() {
     const counts = optionCounts();
     const max = Math.max(0, ...counts);
 
-    // best banner
     if (state.p.length > 0 && max > 0) {
-        const bestIdx = counts.map((c, i) => c === max ? i : -1).filter((i) => i >= 0);
-        const names = bestIdx.map((i) => `「${state.o[i]}」`).join('、');
-        $('bestBanner').innerHTML = `最有力候補: <b>${escapeHtml(names)}</b>（○ ${max} 人）`;
+        const best = counts.map((c, i) => (c === max ? i : -1)).filter((i) => i >= 0)
+            .map((i) => `「${state.o[i]}」`).join('、');
+        $('bestBanner').innerHTML = `最有力候補: <b>${escapeHtml(best)}</b>（○ ${max} 人）`;
         $('bestBanner').classList.remove('hidden');
     } else {
         $('bestBanner').classList.add('hidden');
     }
 
-    // results table
     renderTable(counts, max);
-
-    // respond toggles reflect current option set if not editing
-    if (editingResp < 0 && draft.length !== state.o.length) startRespond(-1);
-    else buildToggles();
-
-    save();
 }
 
 function renderTable(counts, max) {
@@ -531,9 +572,7 @@ function renderTable(counts, max) {
     const isBest = (i) => counts[i] === max && max > 0;
 
     let head = '<thead><tr><th class="col-name">参加者</th>';
-    state.o.forEach((opt, i) => {
-        head += `<th class="${isBest(i) ? 'best' : ''}">${escapeHtml(opt)}</th>`;
-    });
+    state.o.forEach((opt, i) => { head += `<th class="${isBest(i) ? 'best' : ''}">${escapeHtml(opt)}</th>`; });
     head += '</tr></thead>';
 
     let body = '<tbody>';
@@ -552,23 +591,45 @@ function renderTable(counts, max) {
     body += '</tbody>';
 
     let foot = '<tfoot><tr><th class="col-name">○ 合計</th>';
-    counts.forEach((c, i) => {
-        foot += `<td class="${isBest(i) ? 'best' : ''}"><span class="count-ok">${c}</span></td>`;
-    });
+    counts.forEach((c, i) => { foot += `<td class="${isBest(i) ? 'best' : ''}"><span class="count-ok">${c}</span></td>`; });
     foot += '</tr></tfoot>';
 
     table.innerHTML = head + body + foot;
 
-    table.querySelectorAll('[data-edit]').forEach((b) =>
-        b.addEventListener('click', () => startRespond(+b.dataset.edit)));
-    table.querySelectorAll('[data-del]').forEach((b) =>
-        b.addEventListener('click', () => deleteResp(+b.dataset.del)));
+    table.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => {
+        const p = state.p[+b.dataset.edit]; if (p) startRespond(p.n);
+    }));
+    table.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
+        const p = state.p[+b.dataset.del]; if (p) deleteResp(p.n);
+    }));
 }
 
 function escapeHtml(s) {
     return String(s).replace(/[&<>"']/g, (c) =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+/* ---------- live sync (polling) ---------- */
+function startPolling() {
+    stopPolling();
+    if (!DB_URL || !remoteId) return;
+    pollTimer = setInterval(async () => {
+        try {
+            const latest = await dbGet(remoteId);
+            if (latest && latest.o) {
+                const js = JSON.stringify(latest);
+                if (js !== lastSynced) {
+                    state = latest;
+                    lastSynced = js;
+                    cacheLocal();
+                    renderHeaderAndResults(); // update results without disturbing the form
+                    setSync('🟢 同期済み');
+                }
+            }
+        } catch (e) { setSync('⚠ 接続待ち'); }
+    }, POLL_MS);
+}
+function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
 
 /* ---------- share ---------- */
 async function copyLink() {
@@ -590,23 +651,79 @@ $('saveEventBtn').addEventListener('click', saveEvent);
 $('cancelEditBtn').addEventListener('click', () => { $('editorCard').classList.add('hidden'); });
 $('editEventBtn').addEventListener('click', () => openEditor(true));
 $('newEventBtn').addEventListener('click', () => {
-    if (!confirm('新しいイベントを作成します。現在の内容は表示されなくなります（リンクを保存済みなら後で開けます）。よろしいですか？')) return;
-    state = null;
-    editingResp = -1;
+    if (!confirm('新しいイベントを作成します。現在のイベントは表示されなくなります（リンクを保存しておけば後で開けます）。よろしいですか？')) return;
+    stopPolling();
+    state = null; remoteId = null; editingName = null;
     history.replaceState(null, '', location.pathname);
-    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ }
+    setSync('');
     render();
     openEditor(false);
 });
 $('submitRespBtn').addEventListener('click', submitResp);
-$('cancelRespBtn').addEventListener('click', () => startRespond(-1));
+$('cancelRespBtn').addEventListener('click', () => startRespond(null));
 $('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitResp(); });
 $('copyLinkBtn').addEventListener('click', copyLink);
-window.addEventListener('hashchange', () => { state = load(); editingResp = -1; render(); });
+window.addEventListener('hashchange', () => {
+    stopPolling(); state = null; remoteId = null; editingName = null; boot();
+});
 
 /* ---------- boot ---------- */
-state = load();
-if (state) { render(); } else { openEditor(false); }
+async function boot() {
+    const hash = location.hash.replace(/^#/, '');
+
+    // 1) modern short-id link -> load from Firebase
+    if (DB_URL && hash && /^[A-Za-z0-9_-]{4,40}$/.test(hash)) {
+        setSync('読み込み中…');
+        try {
+            const s = await dbGet(hash);
+            if (s && s.o) {
+                remoteId = hash; state = s; cacheLocal();
+                render(); startPolling(); setSync('🟢 同期済み');
+                return;
+            }
+        } catch (e) { /* fall through */ }
+    }
+
+    // 2) legacy full-state link -> migrate to Firebase so it becomes a stable link
+    if (hash) {
+        try {
+            const s = decodeState(hash);
+            if (s && s.o) {
+                state = s;
+                if (DB_URL) {
+                    remoteId = genId();
+                    try {
+                        await dbPut(remoteId, state);
+                        history.replaceState(null, '', '#' + remoteId);
+                        startPolling(); setSync('🟢 同期済み');
+                    } catch (e) { /* keep local */ }
+                }
+                render();
+                return;
+            }
+        } catch (e) { /* not a legacy link */ }
+    }
+
+    // 3) local cache (reopening the base URL)
+    const cached = loadCache();
+    if (cached && cached.state) {
+        state = cached.state;
+        remoteId = cached.id || null;
+        render();
+        if (remoteId && DB_URL) {
+            history.replaceState(null, '', '#' + remoteId);
+            startPolling();
+            try { const s = await dbGet(remoteId); if (s && s.o) { state = s; render(); } } catch (e) { /* ignore */ }
+        }
+        return;
+    }
+
+    // 4) nothing -> show the create form
+    openEditor(false);
+}
+
+boot();
 </script>
 </body>
 </html>
