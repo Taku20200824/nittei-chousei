@@ -255,6 +255,28 @@ tfoot td { font-weight: 800; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 .footer-note { text-align: center; color: var(--muted); font-size: .74rem; margin-top: 26px; }
+
+/* Recent-events history */
+.hist-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.hist-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.hist-item { display: flex; align-items: stretch; gap: 8px; }
+.hist-open {
+    flex: 1; text-align: left; display: flex; flex-direction: column; gap: 3px;
+    padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink); font: inherit; cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.hist-open:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.hist-title { font-weight: 800; font-size: .95rem; display: flex; align-items: center; gap: 6px; }
+.hist-title .hist-admin { color: var(--best); font-size: .85rem; }
+.hist-meta { font-size: .72rem; color: var(--muted); }
+.hist-del {
+    align-self: center; border: 1px solid var(--line); background: transparent; color: var(--muted);
+    cursor: pointer; font-size: .9rem; padding: 8px 11px; border-radius: 10px; line-height: 1;
+    transition: color .15s ease, border-color .15s ease;
+}
+.hist-del:hover { color: var(--ng); border-color: var(--ng); }
+
 .hidden { display: none !important; }
 </style>
 </head>
@@ -267,6 +289,16 @@ tfoot td { font-weight: 800; }
             <p>○ か ✕ だけで出欠をとる、みんなで共有できる日程調整</p>
         </div>
     </div>
+
+    <!-- Recent events (from local history) -->
+    <section class="card hidden" id="historyCard">
+        <div class="hist-head">
+            <h2 style="margin:0">最近のイベント</h2>
+            <button class="btn sm ghost" id="clearHistBtn" type="button">履歴を全消去</button>
+        </div>
+        <ul class="hist-list" id="histList"></ul>
+        <p class="hint" style="margin-top:10px">この端末で作成・閲覧したイベントです。🔑 が付いたものは管理者として開けます。</p>
+    </section>
 
     <!-- Create / edit event -->
     <section class="card" id="editorCard">
@@ -307,6 +339,7 @@ tfoot td { font-weight: 800; }
                 <div class="meta" id="evMeta"></div>
             </div>
             <div class="row-actions">
+                <button class="btn sm ghost" id="homeBtn">🏠 一覧</button>
                 <button class="btn sm ghost hidden" id="editEventBtn">編集</button>
                 <button class="btn sm ghost" id="newEventBtn">新規作成</button>
             </div>
@@ -364,6 +397,8 @@ const $ = (id) => document.getElementById(id);
 /* ---------- config ---------- */
 const DB_URL = 'https://taku-f8db6-default-rtdb.firebaseio.com';
 const STORE_KEY = 'marubatsu-chousei';
+const HIST_KEY = 'marubatsu-chousei-history';
+const HIST_MAX = 24;
 const POLL_MS = 4000;
 
 /* ---------- state ---------- */
@@ -421,10 +456,63 @@ async function resolveAdmin(key) {
 /* ---------- local cache ---------- */
 function cacheLocal() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify({ id: remoteId, adminKey, state })); } catch (e) { /* ignore */ }
+    recordHistory();
 }
 function loadCache() {
     try { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } catch (e) { /* ignore */ }
     return null;
+}
+
+/* ---------- event history (this device) ---------- */
+function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; }
+}
+function saveHistory(list) {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, HIST_MAX))); } catch (e) { /* ignore */ }
+}
+function recordHistory() {
+    if (!remoteId || !state) return;
+    const all = loadHistory();
+    const prev = all.find((e) => e.id === remoteId);
+    const rest = all.filter((e) => e.id !== remoteId);
+    // keep a previously-known admin key even if we opened via the plain link
+    const k = adminKey || (prev && prev.k) || null;
+    rest.unshift({ id: remoteId, k, t: state.t || '(無題)', n: (state.p || []).length, ts: Date.now() });
+    saveHistory(rest);
+}
+function removeHistory(id) { saveHistory(loadHistory().filter((e) => e.id !== id)); renderHistory(); }
+
+function relTime(ts) {
+    if (!ts) return '';
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return 'たった今';
+    if (s < 3600) return Math.floor(s / 60) + '分前';
+    if (s < 86400) return Math.floor(s / 3600) + '時間前';
+    return Math.floor(s / 86400) + '日前';
+}
+
+function renderHistory() {
+    const list = loadHistory();
+    const card = $('historyCard');
+    if (state || list.length === 0) { card.classList.add('hidden'); $('histList').innerHTML = ''; return; }
+    card.classList.remove('hidden');
+    $('histList').innerHTML = list.map((e) =>
+        `<li class="hist-item">` +
+        `<button class="hist-open" data-id="${escapeHtml(e.id)}" data-k="${escapeHtml(e.k || '')}">` +
+        `<span class="hist-title">${escapeHtml(e.t || '(無題)')}${e.k ? ' <span class="hist-admin">🔑 管理者</span>' : ''}</span>` +
+        `<span class="hist-meta">回答 ${e.n || 0} 人 ・ ${relTime(e.ts)}</span></button>` +
+        `<button class="hist-del" data-del="${escapeHtml(e.id)}" title="履歴から削除">✕</button></li>`
+    ).join('');
+    $('histList').querySelectorAll('.hist-open').forEach((b) =>
+        b.addEventListener('click', () => openFromHistory(b.dataset.id, b.dataset.k)));
+    $('histList').querySelectorAll('.hist-del').forEach((b) =>
+        b.addEventListener('click', () => removeHistory(b.dataset.del)));
+}
+
+function openFromHistory(id, k) {
+    const target = id + (k ? '.' + k : '');
+    if (location.hash.replace(/^#/, '') === target) boot();
+    else location.hash = target;   // triggers hashchange -> boot
 }
 
 /* ---------- toast / status ---------- */
@@ -637,8 +725,10 @@ function render() {
     if (!state) {
         ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.add('hidden'));
         if ($('editorCard').classList.contains('hidden')) openEditor(false);
+        renderHistory();
         return;
     }
+    $('historyCard').classList.add('hidden');
     ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.remove('hidden'));
     applyAdminUi();
     renderHeaderAndResults();
@@ -777,15 +867,20 @@ $('dateInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.p
 $('timeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
 $('cancelEditBtn').addEventListener('click', () => { $('editorCard').classList.add('hidden'); });
 $('editEventBtn').addEventListener('click', () => openEditor(true));
-$('newEventBtn').addEventListener('click', () => {
-    if (!confirm('新しいイベントを作成します。現在のイベントは表示されなくなります（リンクを保存しておけば後で開けます）。よろしいですか？')) return;
+
+function goHome() {
     stopPolling();
     state = null; remoteId = null; editingName = null; isAdmin = false; adminKey = null;
     history.replaceState(null, '', location.pathname);
-    try { localStorage.removeItem(STORE_KEY); } catch (e) { /* ignore */ }
     setSync('');
-    render();
-    openEditor(false);
+    render();          // no state -> shows editor + recent-events history
+}
+$('homeBtn').addEventListener('click', goHome);
+$('newEventBtn').addEventListener('click', goHome);
+$('clearHistBtn').addEventListener('click', () => {
+    if (!confirm('この端末のイベント履歴をすべて消去しますか？（イベント自体は削除されません）')) return;
+    try { localStorage.removeItem(HIST_KEY); } catch (e) { /* ignore */ }
+    renderHistory();
 });
 $('submitRespBtn').addEventListener('click', submitResp);
 $('cancelRespBtn').addEventListener('click', () => startRespond(null));
@@ -806,16 +901,22 @@ async function boot() {
     // 1) modern link (#id or #id.adminKey) -> load from Firebase
     if (DB_URL && hid && /^[A-Za-z0-9_-]{4,40}$/.test(hid)) {
         setSync('読み込み中…');
-        try {
-            const s = await dbGet(hid);
-            if (s && s.o) {
-                remoteId = hid; state = s;
-                await resolveAdmin(hkey);
-                cacheLocal();
-                render(); startPolling(); setSync('🟢 同期済み');
-                return;
-            }
-        } catch (e) { /* fall through */ }
+        let s = null, failed = false;
+        try { s = await dbGet(hid); } catch (e) { failed = true; }
+        if (s && s.o) {
+            remoteId = hid; state = s;
+            await resolveAdmin(hkey);
+            cacheLocal();
+            render(); startPolling(); setSync('🟢 同期済み');
+            return;
+        }
+        // valid id but nothing there (deleted/expired) or a network failure
+        toast(failed ? '読み込みに失敗しました。通信を確認してください' : 'イベントが見つかりませんでした（削除・期限切れの可能性）');
+        if (!failed) removeHistory(hid);
+        history.replaceState(null, '', location.pathname);
+        setSync('');
+        openEditor(false); renderHistory();
+        return;
     }
 
     // 2) legacy full-state link -> migrate to Firebase (creator becomes admin)
@@ -841,27 +942,9 @@ async function boot() {
         } catch (e) { /* not a legacy link */ }
     }
 
-    // 3) local cache (reopening the base URL)
-    const cached = loadCache();
-    if (cached && cached.state) {
-        state = cached.state;
-        remoteId = cached.id || null;
-        adminKey = cached.adminKey || null;
-        isAdmin = !state.h || !!adminKey;   // provisional; confirmed below when online
-        render();
-        if (remoteId && DB_URL) {
-            history.replaceState(null, '', '#' + remoteId + (adminKey ? '.' + adminKey : ''));
-            startPolling();
-            try {
-                const s = await dbGet(remoteId);
-                if (s && s.o) { state = s; await resolveAdmin(adminKey || ''); render(); }
-            } catch (e) { /* ignore */ }
-        }
-        return;
-    }
-
-    // 4) nothing -> show the create form
+    // 3) no hash -> home screen: create form + recent-events history
     openEditor(false);
+    renderHistory();
 }
 
 boot();
