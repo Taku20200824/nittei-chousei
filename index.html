@@ -5,281 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>まるばつ日程調整</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%234f46e5'/%3E%3Ccircle cx='11' cy='16' r='5' fill='none' stroke='white' stroke-width='2.6'/%3E%3Cpath d='M18,11L26,21M26,11L18,21' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
-<style>
-:root {
-    --bg: #eef1f6;
-    --card: #ffffff;
-    --ink: #1f2733;
-    --muted: #6b7684;
-    --line: #e2e6ee;
-    --accent: #4f46e5;
-    --accent-soft: #eef0fe;
-    --ok: #16a34a;
-    --ok-soft: #e7f6ec;
-    --ng: #dc2626;
-    --ng-soft: #fdecec;
-    --best: #f59e0b;
-    --best-soft: #fff5e0;
-    --shadow: 0 10px 30px rgba(20, 30, 60, .08);
-    --radius: 14px;
-    color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #0f141c;
-        --card: #171e29;
-        --ink: #e7edf5;
-        --muted: #93a1b3;
-        --line: #26303e;
-        --accent: #8b93ff;
-        --accent-soft: #1e2440;
-        --ok: #4ade80;
-        --ok-soft: #14301f;
-        --ng: #f87171;
-        --ng-soft: #351a1a;
-        --best: #fbbf24;
-        --best-soft: #33290f;
-        --shadow: 0 10px 30px rgba(0, 0, 0, .35);
-        color-scheme: dark;
-    }
-}
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-    min-height: 100vh;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: 'Segoe UI', 'Yu Gothic UI', 'Hiragino Sans', system-ui, sans-serif;
-    line-height: 1.5;
-    -webkit-text-size-adjust: 100%;
-}
-
-.wrap { max-width: 880px; margin: 0 auto; padding: 22px 16px 72px; }
-
-.brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-.brand .logo {
-    display: grid;
-    place-items: center;
-    width: 40px; height: 40px;
-    border-radius: 11px;
-    background: linear-gradient(135deg, var(--accent), #8b5cf6);
-    color: #fff; font-weight: 900; font-size: 1.1rem;
-    box-shadow: var(--shadow);
-    letter-spacing: -1px;
-}
-.brand h1 { font-size: 1.28rem; font-weight: 800; letter-spacing: .01em; }
-.brand p { font-size: .78rem; color: var(--muted); }
-
-.card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 20px;
-    margin-bottom: 18px;
-}
-
-.card h2 {
-    font-size: .8rem;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--muted);
-    margin-bottom: 14px;
-}
-
-label { display: block; font-size: .82rem; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
-
-input[type=text], textarea {
-    width: 100%;
-    padding: 11px 13px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-    transition: border-color .15s ease, box-shadow .15s ease;
-}
-input[type=text]:focus, textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-soft);
-}
-textarea { resize: vertical; min-height: 120px; line-height: 1.7; }
-.field { margin-bottom: 16px; }
-.hint { font-size: .74rem; color: var(--muted); margin-top: 5px; }
-
-/* Date/time candidate picker */
-.date-adder { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-input[type=date], input[type=time] {
-    padding: 10px 12px;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    background: var(--bg);
-    color: var(--ink);
-    font: inherit;
-}
-input[type=date] { flex: 1 1 150px; }
-input[type=time] { flex: 1 1 110px; }
-input[type=date]:focus, input[type=time]:focus {
-    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
-}
-.date-adder .btn { flex: 0 0 auto; }
-
-.opt-list { list-style: none; display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
-.opt-list:empty { display: none; }
-.opt-list li {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
-    font-weight: 700; font-size: .92rem;
-}
-.opt-list .rm {
-    border: none; background: transparent; color: var(--muted); cursor: pointer;
-    font-size: 1rem; padding: 2px 7px; border-radius: 6px; line-height: 1;
-}
-.opt-list .rm:hover { color: var(--ng); background: var(--ng-soft); }
-
-.btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 11px 20px;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    background: var(--accent);
-    color: #fff;
-    font: inherit;
-    font-weight: 800;
-    cursor: pointer;
-    transition: transform .12s ease, filter .12s ease, background .12s ease;
-}
-.btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
-.btn:active { transform: none; }
-.btn:disabled { opacity: .5; cursor: progress; transform: none; }
-.btn.ghost { background: transparent; color: var(--accent); border-color: var(--line); }
-.btn.ghost:hover { background: var(--accent-soft); }
-.btn.sm { padding: 6px 12px; font-size: .8rem; }
-.btn.danger { background: transparent; color: var(--ng); border-color: var(--line); }
-.btn.danger:hover { background: var(--ng-soft); }
-
-.row-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-
-/* Event header */
-.event-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
-.event-head h2 { font-size: 1.4rem; letter-spacing: 0; text-transform: none; color: var(--ink); margin: 0 0 4px; }
-.event-note { color: var(--muted); font-size: .92rem; white-space: pre-wrap; }
-.meta { font-size: .8rem; color: var(--muted); margin-top: 8px; }
-
-.best-banner {
-    margin-top: 14px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: var(--best-soft);
-    border: 1px solid color-mix(in srgb, var(--best) 40%, transparent);
-    font-size: .9rem;
-    font-weight: 700;
-}
-.best-banner b { color: var(--best); }
-
-/* Results table */
-.table-scroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
-table { border-collapse: collapse; width: 100%; font-size: .92rem; }
-th, td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
-thead th {
-    font-size: .8rem; color: var(--muted); font-weight: 800;
-    position: sticky; top: 0; background: var(--card);
-    border-bottom: 2px solid var(--line);
-}
-tbody th, tfoot th { text-align: left; font-weight: 700; }
-.col-name { text-align: left; min-width: 120px; position: sticky; left: 0; background: var(--card); z-index: 1; }
-thead .col-name { z-index: 2; }
-
-.mark { font-weight: 900; font-size: 1.1rem; }
-.mark.ok { color: var(--ok); }
-.mark.ng { color: var(--ng); }
-td.ok { background: var(--ok-soft); }
-td.ng { background: var(--ng-soft); }
-
-th.best, td.best { background: var(--best-soft); }
-tfoot td { font-weight: 800; }
-.count-ok { color: var(--ok); }
-
-.name-cell { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.name-cell .tools { display: inline-flex; gap: 4px; opacity: .8; }
-.icon-btn {
-    border: none; background: transparent; cursor: pointer; color: var(--muted);
-    font-size: .82rem; padding: 3px 5px; border-radius: 6px;
-}
-.icon-btn:hover { background: var(--bg); color: var(--ink); }
-.icon-btn.del:hover { color: var(--ng); }
-
-.empty { color: var(--muted); font-size: .9rem; text-align: center; padding: 20px 0; }
-
-/* Respond form */
-.opt-toggles { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
-.opt-toggle {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
-    padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg);
-}
-.opt-toggle .opt-label { font-size: .9rem; }
-.seg2 { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
-.seg2 button {
-    border: none; background: transparent; cursor: pointer;
-    padding: 7px 16px; font: inherit; font-weight: 900; font-size: 1.05rem; color: var(--muted);
-    transition: background .12s ease, color .12s ease;
-}
-.seg2 button.on-ok { background: var(--ok-soft); color: var(--ok); }
-.seg2 button.on-ng { background: var(--ng-soft); color: var(--ng); }
-
-.sync { font-size: .74rem; color: var(--muted); }
-
-.admin-badge {
-    font-size: .72rem; font-weight: 800; color: var(--best);
-    background: var(--best-soft);
-    border: 1px solid color-mix(in srgb, var(--best) 40%, transparent);
-    padding: 3px 9px; border-radius: 999px; white-space: nowrap;
-}
-
-.toast {
-    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
-    background: var(--ink); color: var(--card);
-    padding: 11px 20px; border-radius: 999px; font-weight: 700; font-size: .88rem;
-    box-shadow: var(--shadow); opacity: 0; pointer-events: none;
-    transition: opacity .2s ease, transform .2s ease;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-.footer-note { text-align: center; color: var(--muted); font-size: .74rem; margin-top: 26px; }
-
-/* Recent-events history */
-.hist-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.hist-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.hist-item { display: flex; align-items: stretch; gap: 8px; }
-.hist-open {
-    flex: 1; text-align: left; display: flex; flex-direction: column; gap: 3px;
-    padding: 11px 14px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); color: var(--ink); font: inherit; cursor: pointer;
-    transition: border-color .15s ease, box-shadow .15s ease;
-}
-.hist-open:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.hist-title { font-weight: 800; font-size: .95rem; display: flex; align-items: center; gap: 6px; }
-.hist-title .hist-admin { color: var(--best); font-size: .85rem; }
-.hist-meta { font-size: .72rem; color: var(--muted); }
-.hist-del {
-    align-self: center; border: 1px solid var(--line); background: transparent; color: var(--muted);
-    cursor: pointer; font-size: .9rem; padding: 8px 11px; border-radius: 10px; line-height: 1;
-    transition: color .15s ease, border-color .15s ease;
-}
-.hist-del:hover { color: var(--ng); border-color: var(--ng); }
-
-.hidden { display: none !important; }
-</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div class="wrap">
@@ -291,26 +17,26 @@ tfoot td { font-weight: 800; }
         </div>
     </div>
 
-    <!-- Recent events (from local history) -->
+    <!-- Recent events (from this device's local history) -->
     <section class="card hidden" id="historyCard">
         <div class="hist-head">
-            <h2 style="margin:0">最近のイベント</h2>
+            <h2 style="margin:0" id="histHeading">最近のイベント</h2>
             <button class="btn sm ghost" id="clearHistBtn" type="button">履歴を全消去</button>
         </div>
         <ul class="hist-list" id="histList"></ul>
-        <p class="hint" style="margin-top:10px">この端末で作成・閲覧したイベントです。🔑 が付いたものは管理者として開けます。</p>
+        <p class="hint" style="margin-top:10px">この端末で作成したイベントです。🔑 が付いたものはこの端末が管理者です。</p>
     </section>
 
     <!-- Create / edit event -->
-    <section class="card" id="editorCard">
+    <section class="card hidden" id="editorCard">
         <h2 id="editorTitle">イベントを作成</h2>
         <div class="field">
             <label for="titleInput">タイトル</label>
-            <input id="titleInput" type="text" placeholder="例）新年会の日程">
+            <input id="titleInput" type="text" maxlength="100" placeholder="例）新年会の日程">
         </div>
         <div class="field">
             <label for="noteInput">メモ（任意）</label>
-            <input id="noteInput" type="text" placeholder="例）場所は未定。第一希望を教えてください">
+            <input id="noteInput" type="text" maxlength="2000" placeholder="例）場所は未定。第一希望を教えてください">
         </div>
         <div class="field">
             <label>候補（日付・時間を選んで追加）</label>
@@ -328,6 +54,15 @@ tfoot td { font-weight: 800; }
         </div>
     </section>
 
+    <!-- Load / error state -->
+    <section class="card state-card hidden" id="stateCard">
+        <div class="state-icon">📅</div>
+        <p id="stateText"></p>
+        <div class="row-actions" style="justify-content:center; margin-top:14px">
+            <button class="btn ghost sm" onclick="location.hash=''">🏠 ホームへ</button>
+        </div>
+    </section>
+
     <!-- Event view -->
     <section class="card hidden" id="eventCard">
         <div class="event-head">
@@ -335,6 +70,7 @@ tfoot td { font-weight: 800; }
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
                     <h2 id="evTitle"></h2>
                     <span id="adminBadge" class="admin-badge hidden">🔑 管理者</span>
+                    <span id="legacyBadge" class="legacy-badge hidden">📦 旧バージョン（閲覧のみ）</span>
                 </div>
                 <div class="event-note" id="evNote"></div>
                 <div class="meta" id="evMeta"></div>
@@ -346,6 +82,9 @@ tfoot td { font-weight: 800; }
             </div>
         </div>
         <div class="best-banner hidden" id="bestBanner"></div>
+        <div class="notice hidden" id="legacyNotice">
+            このイベントは旧バージョンで作成されたため、<b>閲覧のみ</b>可能です。新しい回答を集めるには「新規作成」から作り直してください。
+        </div>
     </section>
 
     <!-- Results -->
@@ -362,7 +101,7 @@ tfoot td { font-weight: 800; }
         <h2 id="respondTitle">出欠を入力</h2>
         <div class="field">
             <label for="nameInput">お名前</label>
-            <input id="nameInput" type="text" placeholder="例）田中" maxlength="24">
+            <input id="nameInput" type="text" placeholder="例）田中" maxlength="40">
         </div>
         <div id="toggles" class="opt-toggles"></div>
         <div class="row-actions" style="margin-top:16px">
@@ -374,588 +113,19 @@ tfoot td { font-weight: 800; }
     <!-- Share -->
     <section class="card hidden" id="shareCard">
         <h2>共有</h2>
-        <p class="hint" style="margin:0 0 12px">このリンクは<strong>ずっと同じ</strong>です。相手が回答すると自動で反映され、あなたの画面も数秒で更新されます。</p>
+        <p class="hint" style="margin:0 0 12px">このリンクを送ると、相手も同じ表を見て ○ / ✕ で回答できます。回答はリアルタイムで反映されます。</p>
         <div class="row-actions">
             <button class="btn" id="copyLinkBtn">🔗 共有リンクをコピー</button>
             <span class="sync" id="syncStatus"></span>
         </div>
-        <div class="row-actions" style="margin-top:12px">
-            <button class="btn ghost hidden" id="copyAdminLinkBtn">🔑 管理者用リンクをコピー</button>
-            <span class="hint hidden" id="adminHint" style="margin:0">この管理者用リンクは自分だけで保管してください。回答の削除・イベント編集ができます。</span>
-        </div>
+        <p class="hint" style="margin-top:10px">編集・削除の権限は「このイベントを作成した端末」および「各回答をこの端末から登録した本人」に限られます（匿名認証で保護）。詳しくは README を参照してください。</p>
     </section>
 
-    <p class="footer-note">回答は共有データベースに保存され、リンクを知っている人が閲覧・回答できます。</p>
+    <p class="footer-note">回答は Firebase に保存され、匿名認証と Security Rules で保護されます。リンクを知っている人が閲覧・回答できます。</p>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script>
-'use strict';
-
-const $ = (id) => document.getElementById(id);
-
-/* ---------- config ---------- */
-const DB_URL = 'https://taku-f8db6-default-rtdb.firebaseio.com';
-const STORE_KEY = 'marubatsu-chousei';
-const HIST_KEY = 'marubatsu-chousei-history';
-const HIST_MAX = 24;
-const POLL_MS = 4000;
-
-/* ---------- state ---------- */
-// state = { t: title, d: note, o: [options], p: [ { n: name, a: [1|0,...] } ] }
-let state = null;
-let remoteId = null;      // Firebase event id (null = local only)
-let editingName = null;   // participant name being edited, or null
-let draft = [];           // working answers for the form (1 = ○, 0 = ✕)
-let draftOptions = [];    // candidate options being built in the editor
-let pollTimer = null;
-let lastSynced = '';      // JSON of the last state we rendered
-let isAdmin = false;      // creator (holds the admin key) can delete/edit
-let adminKey = null;      // secret admin key, known only from the creator's link
-
-/* ---------- legacy share link (old full-state hash) ---------- */
-function decodeState(str) {
-    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
-    const bin = atob(b64);
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    return JSON.parse(new TextDecoder().decode(bytes));
-}
-
-/* ---------- Firebase REST ---------- */
-async function dbGet(id) {
-    const res = await fetch(`${DB_URL}/events/${id}.json`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('GET ' + res.status);
-    return res.json();
-}
-async function dbPut(id, obj) {
-    const res = await fetch(`${DB_URL}/events/${id}.json`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj),
-    });
-    if (!res.ok) throw new Error('PUT ' + res.status);
-    return res.json();
-}
-function genId() {
-    return Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
-}
-function clone(o) { return JSON.parse(JSON.stringify(o)); }
-async function sha256(str) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
-    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-async function resolveAdmin(key) {
-    if (!state || !state.h) { isAdmin = !!state && !state.h; adminKey = null; return; } // legacy events: open
-    if (key && (await sha256(key)) === state.h) {
-        isAdmin = true; adminKey = key;
-        history.replaceState(null, '', '#' + remoteId + '.' + key);
-    } else {
-        isAdmin = false; adminKey = null;
-        history.replaceState(null, '', '#' + remoteId);
-    }
-}
-
-/* ---------- local cache ---------- */
-function cacheLocal() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ id: remoteId, adminKey, state })); } catch (e) { /* ignore */ }
-    recordHistory();
-}
-function loadCache() {
-    try { const raw = localStorage.getItem(STORE_KEY); if (raw) return JSON.parse(raw); } catch (e) { /* ignore */ }
-    return null;
-}
-
-/* ---------- event history (this device) ---------- */
-function loadHistory() {
-    try { return JSON.parse(localStorage.getItem(HIST_KEY)) || []; } catch (e) { return []; }
-}
-function saveHistory(list) {
-    try { localStorage.setItem(HIST_KEY, JSON.stringify(list.slice(0, HIST_MAX))); } catch (e) { /* ignore */ }
-}
-function recordHistory() {
-    if (!remoteId || !state) return;
-    const all = loadHistory();
-    const prev = all.find((e) => e.id === remoteId);
-    // keep a previously-known admin key even if we opened via the plain link
-    const k = adminKey || (prev && prev.k) || null;
-    // Only remember events created on THIS device (we hold the admin key).
-    // Events others created (opened as a participant) are not recorded.
-    if (!k) return;
-    const rest = all.filter((e) => e.id !== remoteId);
-    rest.unshift({ id: remoteId, k, t: state.t || '(無題)', n: (state.p || []).length, ts: Date.now() });
-    saveHistory(rest);
-}
-function removeHistory(id) { saveHistory(loadHistory().filter((e) => e.id !== id)); renderHistory(); }
-
-function relTime(ts) {
-    if (!ts) return '';
-    const s = Math.floor((Date.now() - ts) / 1000);
-    if (s < 60) return 'たった今';
-    if (s < 3600) return Math.floor(s / 60) + '分前';
-    if (s < 86400) return Math.floor(s / 3600) + '時間前';
-    return Math.floor(s / 86400) + '日前';
-}
-
-function renderHistory() {
-    // show only events created on this device; prune any others left by older versions
-    let list = loadHistory();
-    const keyed = list.filter((e) => e.k);
-    if (keyed.length !== list.length) { saveHistory(keyed); }
-    list = keyed;
-    const card = $('historyCard');
-    if (state || list.length === 0) { card.classList.add('hidden'); $('histList').innerHTML = ''; return; }
-    card.classList.remove('hidden');
-    $('histList').innerHTML = list.map((e) =>
-        `<li class="hist-item">` +
-        `<button class="hist-open" data-id="${escapeHtml(e.id)}" data-k="${escapeHtml(e.k || '')}">` +
-        `<span class="hist-title">${escapeHtml(e.t || '(無題)')}${e.k ? ' <span class="hist-admin">🔑 管理者</span>' : ''}</span>` +
-        `<span class="hist-meta">回答 ${e.n || 0} 人 ・ ${relTime(e.ts)}</span></button>` +
-        `<button class="hist-del" data-del="${escapeHtml(e.id)}" title="履歴から削除">✕</button></li>`
-    ).join('');
-    $('histList').querySelectorAll('.hist-open').forEach((b) =>
-        b.addEventListener('click', () => openFromHistory(b.dataset.id, b.dataset.k)));
-    $('histList').querySelectorAll('.hist-del').forEach((b) =>
-        b.addEventListener('click', () => removeHistory(b.dataset.del)));
-}
-
-function openFromHistory(id, k) {
-    const target = id + (k ? '.' + k : '');
-    if (location.hash.replace(/^#/, '') === target) boot();
-    else location.hash = target;   // triggers hashchange -> boot
-}
-
-/* ---------- toast / status ---------- */
-let toastTimer = null;
-function toast(msg) {
-    $('toast').textContent = msg;
-    $('toast').classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1800);
-}
-function setSync(txt) { $('syncStatus').textContent = txt; }
-
-/* ---------- remote commit (read → modify → write) ---------- */
-async function commit(mutate) {
-    if (DB_URL && remoteId) {
-        let latest;
-        try { latest = await dbGet(remoteId); } catch (e) { latest = null; }
-        if (!latest || !latest.o) latest = clone(state);
-        if (!latest.p) latest.p = [];
-        mutate(latest);
-        state = latest;
-        try { await dbPut(remoteId, state); setSync('🟢 同期済み'); }
-        catch (e) { setSync('⚠ オフライン'); toast('通信に失敗しました。あとで再度お試しください'); }
-    } else {
-        mutate(state);
-    }
-    cacheLocal();
-    render();
-}
-
-/* ---------- event editor ---------- */
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
-function formatOption(dateStr, timeStr) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const wd = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-    let s = `${m}/${d}(${wd})`;
-    if (timeStr) s += ' ' + timeStr;
-    return s;
-}
-
-function renderOptList() {
-    const ul = $('optList');
-    ul.innerHTML = draftOptions.map((o, i) =>
-        `<li><span>${escapeHtml(o)}</span><button type="button" class="rm" data-i="${i}" title="削除">✕</button></li>`
-    ).join('');
-    ul.querySelectorAll('.rm').forEach((b) => b.addEventListener('click', () => {
-        draftOptions.splice(+b.dataset.i, 1);
-        renderOptList();
-    }));
-}
-
-function addOption() {
-    const d = $('dateInput').value;
-    const t = $('timeInput').value;
-    if (!d) { toast('日付を選んでください'); $('dateInput').focus(); return; }
-    const label = formatOption(d, t);
-    if (draftOptions.includes(label)) { toast('同じ候補が既にあります'); return; }
-    draftOptions.push(label);
-    renderOptList();
-    $('timeInput').value = '';   // keep the date so several times on one day are easy to add
-    $('dateInput').focus();
-}
-
-function openEditor(isEdit) {
-    $('editorTitle').textContent = isEdit ? 'イベントを編集' : 'イベントを作成';
-    $('saveEventBtn').textContent = isEdit ? '更新する' : 'イベントを作成';
-    $('cancelEditBtn').classList.toggle('hidden', !isEdit);
-    $('dateInput').value = '';
-    $('timeInput').value = '';
-    if (isEdit && state) {
-        $('titleInput').value = state.t;
-        $('noteInput').value = state.d || '';
-        draftOptions = state.o.slice();
-    } else {
-        $('titleInput').value = '';
-        $('noteInput').value = '';
-        draftOptions = [];
-    }
-    renderOptList();
-    $('editorCard').classList.remove('hidden');
-    $('editorCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function saveEvent() {
-    const title = $('titleInput').value.trim();
-    const note = $('noteInput').value.trim();
-    const options = draftOptions.slice();
-
-    if (!title) { toast('タイトルを入力してください'); $('titleInput').focus(); return; }
-    if (options.length === 0) { toast('候補を1つ以上追加してください'); $('dateInput').focus(); return; }
-
-    $('saveEventBtn').disabled = true;
-    try {
-        if (!state && !remoteId) {
-            // brand-new event: mint an admin key, store only its hash
-            adminKey = genId() + genId();
-            const h = await sha256(adminKey);
-            state = { t: title, d: note, o: options, p: [], h };
-            isAdmin = true;
-            if (DB_URL) {
-                remoteId = genId();
-                setSync('作成中…');
-                await dbPut(remoteId, state);
-                history.replaceState(null, '', '#' + remoteId + '.' + adminKey);
-                setSync('🟢 同期済み');
-                startPolling();
-            }
-            cacheLocal();
-            $('editorCard').classList.add('hidden');
-            render();
-        } else {
-            // edit an existing event definition (keep answers, realign to new options)
-            await commit((s) => {
-                s.t = title; s.d = note; s.o = options;
-                s.p = (s.p || []).map((pp) => ({
-                    n: pp.n, a: options.map((_, i) => (i < pp.a.length ? pp.a[i] : 1)),
-                }));
-            });
-            $('editorCard').classList.add('hidden');
-        }
-    } catch (e) {
-        if (!state || !state.p) remoteId = null;
-        toast('保存に失敗しました。ネット接続を確認してください');
-    } finally {
-        $('saveEventBtn').disabled = false;
-    }
-}
-
-/* ---------- responding ---------- */
-function buildToggles() {
-    const el = $('toggles');
-    el.innerHTML = '';
-    state.o.forEach((opt, i) => {
-        const wrap = document.createElement('div');
-        wrap.className = 'opt-toggle';
-        const label = document.createElement('span');
-        label.className = 'opt-label';
-        label.textContent = opt;
-        const seg = document.createElement('div');
-        seg.className = 'seg2';
-        const ok = document.createElement('button');
-        ok.type = 'button'; ok.textContent = '○';
-        const ng = document.createElement('button');
-        ng.type = 'button'; ng.textContent = '✕';
-        const paint = () => {
-            ok.className = draft[i] === 1 ? 'on-ok' : '';
-            ng.className = draft[i] === 0 ? 'on-ng' : '';
-        };
-        ok.addEventListener('click', () => { draft[i] = 1; paint(); });
-        ng.addEventListener('click', () => { draft[i] = 0; paint(); });
-        paint();
-        seg.append(ok, ng);
-        wrap.append(label, seg);
-        el.appendChild(wrap);
-    });
-}
-
-function startRespond(editName) {
-    editingName = editName || null;
-    if (editingName) {
-        const person = state.p.find((p) => p.n === editingName);
-        $('nameInput').value = person ? person.n : '';
-        draft = person ? person.a.slice() : state.o.map(() => 1);
-        $('respondTitle').textContent = '回答を編集';
-        $('submitRespBtn').textContent = '更新する';
-        $('cancelRespBtn').classList.remove('hidden');
-        $('respondCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-        $('nameInput').value = '';
-        draft = state.o.map(() => 1); // default all ○
-        $('respondTitle').textContent = '出欠を入力';
-        $('submitRespBtn').textContent = '登録する';
-        $('cancelRespBtn').classList.add('hidden');
-    }
-    buildToggles();
-}
-
-async function submitResp() {
-    const name = $('nameInput').value.trim();
-    if (!name) { toast('お名前を入力してください'); $('nameInput').focus(); return; }
-    const answers = draft.slice();
-    const prev = editingName;
-
-    $('submitRespBtn').disabled = true;
-    await commit((s) => {
-        s.p = s.p || [];
-        if (prev && prev !== name) s.p = s.p.filter((p) => p.n !== prev);
-        const a = s.o.map((_, i) => (i < answers.length ? answers[i] : 1));
-        const idx = s.p.findIndex((p) => p.n === name);
-        if (idx >= 0) s.p[idx] = { n: name, a };
-        else s.p.push({ n: name, a });
-    });
-    $('submitRespBtn').disabled = false;
-    toast(prev ? '回答を更新しました' : '登録しました');
-    startRespond(null);
-}
-
-async function deleteResp(name) {
-    if (!confirm(name + ' さんの回答を削除しますか？')) return;
-    await commit((s) => { s.p = (s.p || []).filter((p) => p.n !== name); });
-    if (editingName === name) startRespond(null);
-}
-
-/* ---------- rendering ---------- */
-function optionCounts() {
-    return state.o.map((_, i) => state.p.reduce((sum, p) => sum + (p.a[i] === 1 ? 1 : 0), 0));
-}
-
-function render() {
-    if (!state) {
-        ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.add('hidden'));
-        if ($('editorCard').classList.contains('hidden')) openEditor(false);
-        renderHistory();
-        return;
-    }
-    $('historyCard').classList.add('hidden');
-    ['eventCard', 'resultsCard', 'respondCard', 'shareCard'].forEach((id) => $(id).classList.remove('hidden'));
-    applyAdminUi();
-    renderHeaderAndResults();
-    if (!editingName && draft.length !== state.o.length) startRespond(null);
-    else buildToggles();
-    lastSynced = JSON.stringify(state);
-    cacheLocal();
-}
-
-function applyAdminUi() {
-    $('adminBadge').classList.toggle('hidden', !isAdmin);
-    $('editEventBtn').classList.toggle('hidden', !isAdmin);
-    $('copyAdminLinkBtn').classList.toggle('hidden', !isAdmin);
-    $('adminHint').classList.toggle('hidden', !isAdmin);
-}
-
-function renderHeaderAndResults() {
-    $('evTitle').textContent = state.t;
-    $('evNote').textContent = state.d || '';
-    $('evNote').classList.toggle('hidden', !state.d);
-    $('evMeta').textContent = `候補 ${state.o.length} 件 ・ 回答 ${state.p.length} 人`;
-
-    const counts = optionCounts();
-    const max = Math.max(0, ...counts);
-
-    if (state.p.length > 0 && max > 0) {
-        const best = counts.map((c, i) => (c === max ? i : -1)).filter((i) => i >= 0)
-            .map((i) => `「${state.o[i]}」`).join('、');
-        $('bestBanner').innerHTML = `最有力候補: <b>${escapeHtml(best)}</b>（○ ${max} 人）`;
-        $('bestBanner').classList.remove('hidden');
-    } else {
-        $('bestBanner').classList.add('hidden');
-    }
-
-    renderTable(counts, max);
-}
-
-function renderTable(counts, max) {
-    const noResp = state.p.length === 0;
-    $('noResp').classList.toggle('hidden', !noResp);
-    const table = $('resultsTable');
-    table.classList.toggle('hidden', noResp);
-    if (noResp) { table.innerHTML = ''; return; }
-
-    const isBest = (i) => counts[i] === max && max > 0;
-
-    let head = '<thead><tr><th class="col-name">参加者</th>';
-    state.o.forEach((opt, i) => { head += `<th class="${isBest(i) ? 'best' : ''}">${escapeHtml(opt)}</th>`; });
-    head += '</tr></thead>';
-
-    let body = '<tbody>';
-    state.p.forEach((p, idx) => {
-        const tools = isAdmin
-            ? `<span class="tools">` +
-              `<button class="icon-btn" data-edit="${idx}" title="編集">✎</button>` +
-              `<button class="icon-btn del" data-del="${idx}" title="削除">🗑</button>` +
-              `</span>`
-            : '';
-        body += `<tr><th class="col-name"><span class="name-cell"><span>${escapeHtml(p.n)}</span>${tools}</span></th>`;
-        state.o.forEach((_, i) => {
-            const ok = p.a[i] === 1;
-            body += `<td class="${ok ? 'ok' : 'ng'} ${isBest(i) ? 'best' : ''}"><span class="mark ${ok ? 'ok' : 'ng'}">${ok ? '○' : '✕'}</span></td>`;
-        });
-        body += '</tr>';
-    });
-    body += '</tbody>';
-
-    let foot = '<tfoot><tr><th class="col-name">○ 合計</th>';
-    counts.forEach((c, i) => { foot += `<td class="${isBest(i) ? 'best' : ''}"><span class="count-ok">${c}</span></td>`; });
-    foot += '</tr></tfoot>';
-
-    table.innerHTML = head + body + foot;
-
-    table.querySelectorAll('[data-edit]').forEach((b) => b.addEventListener('click', () => {
-        const p = state.p[+b.dataset.edit]; if (p) startRespond(p.n);
-    }));
-    table.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
-        const p = state.p[+b.dataset.del]; if (p) deleteResp(p.n);
-    }));
-}
-
-function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) =>
-        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-/* ---------- live sync (polling) ---------- */
-function startPolling() {
-    stopPolling();
-    if (!DB_URL || !remoteId) return;
-    pollTimer = setInterval(async () => {
-        try {
-            const latest = await dbGet(remoteId);
-            if (latest && latest.o) {
-                const js = JSON.stringify(latest);
-                if (js !== lastSynced) {
-                    state = latest;
-                    lastSynced = js;
-                    cacheLocal();
-                    renderHeaderAndResults(); // update results without disturbing the form
-                    setSync('🟢 同期済み');
-                }
-            }
-        } catch (e) { setSync('⚠ 接続待ち'); }
-    }, POLL_MS);
-}
-function stopPolling() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
-
-/* ---------- share ---------- */
-async function copyText(url, msg) {
-    try {
-        await navigator.clipboard.writeText(url);
-        toast(msg);
-    } catch (e) {
-        const ta = document.createElement('textarea');
-        ta.value = url; document.body.appendChild(ta); ta.select();
-        try { document.execCommand('copy'); toast(msg); }
-        catch (_) { toast('コピーに失敗しました'); }
-        ta.remove();
-    }
-}
-function participantUrl() {
-    const base = location.origin + location.pathname;
-    return remoteId ? base + '#' + remoteId : location.href;
-}
-function copyLink() { copyText(participantUrl(), '共有リンクをコピーしました'); }
-function copyAdminLink() {
-    if (!adminKey) { toast('管理者リンクがありません'); return; }
-    copyText(location.origin + location.pathname + '#' + remoteId + '.' + adminKey, '管理者用リンクをコピーしました');
-}
-
-/* ---------- wire up ---------- */
-$('saveEventBtn').addEventListener('click', saveEvent);
-$('addOptBtn').addEventListener('click', addOption);
-$('dateInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
-$('timeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
-$('cancelEditBtn').addEventListener('click', () => { $('editorCard').classList.add('hidden'); });
-$('editEventBtn').addEventListener('click', () => openEditor(true));
-
-function goHome() {
-    stopPolling();
-    state = null; remoteId = null; editingName = null; isAdmin = false; adminKey = null;
-    history.replaceState(null, '', location.pathname);
-    setSync('');
-    render();          // no state -> shows editor + recent-events history
-}
-$('homeBtn').addEventListener('click', goHome);
-$('newEventBtn').addEventListener('click', goHome);
-$('clearHistBtn').addEventListener('click', () => {
-    if (!confirm('この端末のイベント履歴をすべて消去しますか？（イベント自体は削除されません）')) return;
-    try { localStorage.removeItem(HIST_KEY); } catch (e) { /* ignore */ }
-    renderHistory();
-});
-$('submitRespBtn').addEventListener('click', submitResp);
-$('cancelRespBtn').addEventListener('click', () => startRespond(null));
-$('nameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitResp(); });
-$('copyLinkBtn').addEventListener('click', copyLink);
-$('copyAdminLinkBtn').addEventListener('click', copyAdminLink);
-window.addEventListener('hashchange', () => {
-    stopPolling(); state = null; remoteId = null; editingName = null; isAdmin = false; adminKey = null; boot();
-});
-
-/* ---------- boot ---------- */
-async function boot() {
-    const hash = location.hash.replace(/^#/, '');
-    const dot = hash.indexOf('.');
-    const hid = dot >= 0 ? hash.slice(0, dot) : hash;   // event id
-    const hkey = dot >= 0 ? hash.slice(dot + 1) : '';   // admin key (optional)
-
-    // 1) modern link (#id or #id.adminKey) -> load from Firebase
-    if (DB_URL && hid && /^[A-Za-z0-9_-]{4,40}$/.test(hid)) {
-        setSync('読み込み中…');
-        let s = null, failed = false;
-        try { s = await dbGet(hid); } catch (e) { failed = true; }
-        if (s && s.o) {
-            remoteId = hid; state = s;
-            await resolveAdmin(hkey);
-            cacheLocal();
-            render(); startPolling(); setSync('🟢 同期済み');
-            return;
-        }
-        // valid id but nothing there (deleted/expired) or a network failure
-        toast(failed ? '読み込みに失敗しました。通信を確認してください' : 'イベントが見つかりませんでした（削除・期限切れの可能性）');
-        if (!failed) removeHistory(hid);
-        history.replaceState(null, '', location.pathname);
-        setSync('');
-        openEditor(false); renderHistory();
-        return;
-    }
-
-    // 2) legacy full-state link -> migrate to Firebase (creator becomes admin)
-    if (hash) {
-        try {
-            const s = decodeState(hash);
-            if (s && s.o) {
-                state = s;
-                if (DB_URL) {
-                    adminKey = genId() + genId();
-                    state.h = await sha256(adminKey);
-                    isAdmin = true;
-                    remoteId = genId();
-                    try {
-                        await dbPut(remoteId, state);
-                        history.replaceState(null, '', '#' + remoteId + '.' + adminKey);
-                        startPolling(); setSync('🟢 同期済み');
-                    } catch (e) { /* keep local */ }
-                }
-                render();
-                return;
-            }
-        } catch (e) { /* not a legacy link */ }
-    }
-
-    // 3) no hash -> home screen: create form + recent-events history
-    openEditor(false);
-    renderHistory();
-}
-
-boot();
-</script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>

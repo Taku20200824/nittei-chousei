@@ -1,0 +1,59 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "events": {
+      "$eventId": {
+        ".read": "auth != null",
+
+        ".write": "auth != null && ( (!data.exists() && newData.child('ownerUid').val() === auth.uid) || (data.exists() && data.child('ownerUid').isString() && data.child('ownerUid').val() === auth.uid) )",
+
+        ".validate": "newData.hasChildren(['title', 'ownerUid', 'createdAt', 'options'])",
+
+        "title":     { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100" },
+        "note":      { ".validate": "newData.isString() && newData.val().length <= 2000" },
+        "ownerUid":  { ".validate": "newData.isString() && newData.val() === auth.uid && (!data.exists() || data.val() === auth.uid)" },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "schemaVersion": { ".validate": "newData.isNumber()" },
+
+        "options": {
+          ".validate": "newData.hasChildren()",
+          "$optionId": {
+            ".validate": "$optionId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.hasChildren(['date', 'order'])",
+            "date":  { ".validate": "newData.isString() && newData.val().matches(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/)" },
+            "time":  { ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)" },
+            "order": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        "$other": { ".validate": false }
+      }
+    },
+
+    "responses": {
+      "$eventId": {
+        ".read": "auth != null",
+
+        "$responseId": {
+          ".write": "auth != null && ( ( (!data.exists() && newData.child('authorUid').val() === auth.uid) || (data.exists() && data.child('authorUid').isString() && data.child('authorUid').val() === auth.uid) ) || root.child('events').child($eventId).child('ownerUid').val() === auth.uid )",
+
+          ".validate": "$responseId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.hasChildren(['name', 'authorUid', 'createdAt'])",
+
+          "name":      { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+          "authorUid": { ".validate": "newData.isString() && (!data.exists() || data.val() === newData.val())" },
+          "createdAt": { ".validate": "newData.isNumber()" },
+          "updatedAt": { ".validate": "newData.isNumber()" },
+
+          "answers": {
+            "$optionId": { ".validate": "$optionId.matches(/^[A-Za-z0-9_-]{6,64}$/) && newData.isBoolean()" }
+          },
+
+          "$other": { ".validate": false }
+        }
+      }
+    }
+  }
+}
