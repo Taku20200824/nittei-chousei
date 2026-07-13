@@ -127,6 +127,7 @@ function renderEvent() {
         onEdit: (r) => startRespond(r),
         onDelete: (r) => doDeleteResponse(r),
     });
+    UI.renderComments(currentResponses);
     // keep the form intact; only (re)build toggles if option set changed or first render
     ensureDraftShape();
     UI.renderToggles(currentEvent, draftAnswers, (oid, v) => { draftAnswers[oid] = v; });
@@ -141,6 +142,7 @@ function renderLegacy() {
     $('legacyNotice').classList.remove('hidden');
     UI.renderHeader(currentEvent, currentResponses, { isAdmin: false });
     UI.renderResults(currentEvent, currentResponses, { isAdmin: false, currentUid: null, onEdit() {}, onDelete() {} });
+    UI.renderComments(currentResponses);
     renderHistory();
 }
 
@@ -156,6 +158,7 @@ function startRespond(response) {
     editingResponse = response || null;
     if (editingResponse) {
         $('nameInput').value = editingResponse.name;
+        $('commentInput').value = editingResponse.comment || '';
         draftAnswers = { ...editingResponse.answers };
         $('respondTitle').textContent = '回答を編集';
         $('submitRespBtn').textContent = '更新する';
@@ -163,6 +166,7 @@ function startRespond(response) {
         $('respondCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } else {
         $('nameInput').value = '';
+        $('commentInput').value = '';
         draftAnswers = {};                                 // new options start 未回答 (not ○)
         $('respondTitle').textContent = '出欠を入力';
         $('submitRespBtn').textContent = '登録する';
@@ -175,12 +179,15 @@ async function submitResp() {
     if (saving) return;                                    // dup-submit guard
     const nameCheck = M.validateName($('nameInput').value);
     if (!nameCheck.ok) { UI.showToast(nameCheck.error); $('nameInput').focus(); return; }
+    const commentCheck = M.validateComment($('commentInput').value);
+    if (!commentCheck.ok) { UI.showToast(commentCheck.error); $('commentInput').focus(); return; }
 
     saving = true; $('submitRespBtn').disabled = true; UI.setStatus('saving');
     try {
         await EV.saveResponse(currentId, {
             responseId: editingResponse ? editingResponse.responseId : null,
             name: nameCheck.value,
+            comment: commentCheck.value,
             answers: draftAnswers,
         });
         UI.showToast(editingResponse ? '回答を更新しました' : '登録しました');
@@ -214,33 +221,41 @@ function openEditor(isEdit) {
     $('editorTitle').textContent = isEdit ? 'イベントを編集' : 'イベントを作成';
     $('saveEventBtn').textContent = isEdit ? '更新する' : 'イベントを作成';
     $('cancelEditBtn').classList.toggle('hidden', !isEdit);
-    $('dateInput').value = ''; $('timeInput').value = '';
+    $('dateInput').value = ''; $('startInput').value = ''; $('endInput').value = '';
     if (isEdit && currentEvent) {
         $('titleInput').value = currentEvent.title;
         $('noteInput').value = currentEvent.note || '';
-        draftOptions = currentEvent.options.map((o) => ({ optionId: o.optionId, date: o.date, time: o.time, label: o.label }));
+        draftOptions = currentEvent.options.map((o) => ({ optionId: o.optionId, date: o.date, start: o.start, end: o.end, label: o.label }));
     } else {
         $('titleInput').value = ''; $('noteInput').value = ''; draftOptions = [];
     }
-    UI.renderOptEditor(draftOptions, removeDraftOption);
+    renderOpts();
     EVENT_CARDS.forEach(hide); hide('stateCard');
     show('editorCard');
     $('editorCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function renderOpts() { UI.renderOptEditor(draftOptions, { onRemove: removeDraftOption, onMove: moveDraftOption }); }
+
 function addOption() {
     const date = $('dateInput').value;
-    const time = $('timeInput').value;
-    if (!M.isValidDate(date)) { UI.showToast('日付を正しく選んでください'); $('dateInput').focus(); return; }
-    if (!M.isValidTime(time)) { UI.showToast('時間の形式が正しくありません'); return; }
-    const label = M.formatOption(date, time);
-    if (draftOptions.some((o) => o.date === date && (o.time || '') === (time || ''))) { UI.showToast('同じ候補が既にあります'); return; }
+    const start = $('startInput').value;
+    const end = $('endInput').value;
+    const chk = M.validateOptionTimes({ date, start, end });
+    if (!chk.ok) { UI.showToast(chk.error); $('dateInput').focus(); return; }
+    if (draftOptions.some((o) => o.date === date && (o.start || '') === (start || '') && (o.end || '') === (end || ''))) { UI.showToast('同じ候補が既にあります'); return; }
     if (draftOptions.length >= M.LIMITS.OPTIONS_MAX) { UI.showToast(`候補は${M.LIMITS.OPTIONS_MAX}件までです`); return; }
-    draftOptions.push({ date, time, label });
-    UI.renderOptEditor(draftOptions, removeDraftOption);
-    $('timeInput').value = ''; $('dateInput').focus();
+    draftOptions.push({ date, start, end, label: M.formatOption(date, start, end) });
+    renderOpts();
+    $('startInput').value = ''; $('endInput').value = ''; $('dateInput').focus();
 }
-function removeDraftOption(i) { draftOptions.splice(i, 1); UI.renderOptEditor(draftOptions, removeDraftOption); }
+function removeDraftOption(i) { draftOptions.splice(i, 1); renderOpts(); }
+function moveDraftOption(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= draftOptions.length) return;
+    [draftOptions[i], draftOptions[j]] = [draftOptions[j], draftOptions[i]];
+    renderOpts();
+}
 
 async function saveEvent() {
     if (saving) return;
@@ -324,7 +339,8 @@ function wire() {
     $('saveEventBtn').addEventListener('click', saveEvent);
     $('addOptBtn').addEventListener('click', addOption);
     $('dateInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
-    $('timeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
+    $('startInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
+    $('endInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(); } });
     $('cancelEditBtn').addEventListener('click', () => { if (currentEvent) renderEvent(); else showHome(); });
     $('editEventBtn').addEventListener('click', () => openEditor(true));
     $('homeBtn').addEventListener('click', () => { location.hash = ''; });

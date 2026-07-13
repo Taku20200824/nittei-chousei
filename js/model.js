@@ -6,6 +6,7 @@ export const LIMITS = Object.freeze({
     TITLE_MAX: 100,
     NOTE_MAX: 2000,
     NAME_MAX: 40,
+    COMMENT_MAX: 500,
     OPTIONS_MIN: 1,
     OPTIONS_MAX: 60,
     RESPONSES_MAX: 500,   // soft client-side guard; see README for rule-level note
@@ -50,12 +51,14 @@ export function isValidTime(timeStr) {
     return timeStr === '' || timeStr == null ? true : (typeof timeStr === 'string' && LIMITS.TIME_RE.test(timeStr));
 }
 
-// "2026/7/20(月) 19:00" — Japanese, year included, no leading zeros on m/d.
-export function formatOption(dateStr, timeStr) {
+// "2026/7/20(月) 19:00–21:00" — Japanese, year included, no leading zeros on m/d.
+// start/end are optional "HH:mm"; end is only shown when start is present.
+export function formatOption(dateStr, startStr, endStr) {
     const p = parseDateParts(dateStr);
     if (!p) return String(dateStr || '');
     let s = `${p.y}/${p.m}/${p.d}(${p.weekday})`;
-    if (timeStr) s += ` ${timeStr}`;
+    if (startStr && endStr) s += ` ${startStr}–${endStr}`;
+    else if (startStr) s += ` ${startStr}`;
     return s;
 }
 
@@ -70,11 +73,23 @@ export function validateEventInput({ title, note, options }) {
     else if (options.length > LIMITS.OPTIONS_MAX) errors.push(`候補は${LIMITS.OPTIONS_MAX}件までです`);
     else {
         for (const o of options) {
-            if (!isValidDate(o.date)) { errors.push('日付の形式が正しくありません'); break; }
-            if (!isValidTime(o.time)) { errors.push('時間の形式が正しくありません'); break; }
+            const chk = validateOptionTimes(o);
+            if (!chk.ok) { errors.push(chk.error); break; }
         }
     }
     return { ok: errors.length === 0, errors };
+}
+
+// One candidate's date + optional start/end. end requires start and must be later.
+export function validateOptionTimes(o) {
+    if (!isValidDate(o.date)) return { ok: false, error: '日付の形式が正しくありません' };
+    if (!isValidTime(o.start)) return { ok: false, error: '開始時間の形式が正しくありません' };
+    if (o.end) {
+        if (!isValidTime(o.end)) return { ok: false, error: '終了時間の形式が正しくありません' };
+        if (!o.start) return { ok: false, error: '終了時間だけは指定できません（開始時間も入れてください）' };
+        if (o.end <= o.start) return { ok: false, error: '終了時間は開始時間より後にしてください' };
+    }
+    return { ok: true };
 }
 
 export function validateName(name) {
@@ -84,13 +99,23 @@ export function validateName(name) {
     return { ok: true, value: n };
 }
 
+// Comment is optional; line breaks are preserved, only length is capped.
+export function validateComment(comment) {
+    const c = (comment == null ? '' : String(comment));
+    if (c.length > LIMITS.COMMENT_MAX) return { ok: false, error: `コメントは${LIMITS.COMMENT_MAX}文字以内で入力してください` };
+    return { ok: true, value: c };
+}
+
 /* ---------- option helpers ---------- */
-// Build a stored options map { optionId: {date,time,order} } from an ordered array.
+// Build a stored options map { optionId: {date,start?,end?,order} } from an ordered array.
+// `order` comes from array position, so reordering the array = reordering candidates.
 export function optionsToMap(orderedOptions) {
     const map = {};
     orderedOptions.forEach((o, i) => {
-        map[o.optionId] = { date: o.date, order: i + 1 };
-        if (o.time) map[o.optionId].time = o.time;
+        const rec = { date: o.date, order: i + 1 };
+        if (o.start) rec.start = o.start;
+        if (o.end) rec.end = o.end;
+        map[o.optionId] = rec;
     });
     return map;
 }
@@ -103,9 +128,10 @@ export function optionsFromMap(optionsMap) {
         .map(([optionId, o]) => ({
             optionId,
             date: typeof o.date === 'string' ? o.date : '',
-            time: typeof o.time === 'string' ? o.time : '',
+            start: typeof o.start === 'string' ? o.start : '',
+            end: typeof o.end === 'string' ? o.end : '',
             order: typeof o.order === 'number' ? o.order : 0,
-            label: o.legacyLabel ? String(o.legacyLabel) : formatOption(o.date, o.time),
+            label: o.legacyLabel ? String(o.legacyLabel) : formatOption(o.date, o.start, o.end),
             legacy: !!o.legacyLabel,
         }))
         .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
@@ -141,8 +167,7 @@ export function adaptLegacyEvent(id, raw) {
     const optionLabels = Array.isArray(raw.o) ? raw.o : [];
     const options = optionLabels.map((label, i) => ({
         optionId: `legacy-${i}`,
-        date: '',
-        time: '',
+        date: '', start: '', end: '',
         order: i + 1,
         label: String(label),
         legacy: true,
@@ -154,6 +179,7 @@ export function adaptLegacyEvent(id, raw) {
         return {
             responseId: `legacy-${i}`,
             name: typeof p.n === 'string' ? p.n : '(無名)',
+            comment: typeof p.c === 'string' ? p.c : '',   // some legacy rows may carry a comment
             authorUid: '',        // legacy responses have no owner; read-only
             answers,
             createdAt: 0,
@@ -184,6 +210,7 @@ export function normalizeResponses(raw) {
         .map(([responseId, r]) => ({
             responseId,
             name: typeof r.name === 'string' ? r.name : '(無名)',
+            comment: typeof r.comment === 'string' ? r.comment : '',
             authorUid: typeof r.authorUid === 'string' ? r.authorUid : '',
             answers: (r.answers && typeof r.answers === 'object') ? r.answers : {},
             createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,

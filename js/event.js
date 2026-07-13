@@ -9,11 +9,11 @@ import {
 import * as M from './model.js';
 
 /* ---------- create ---------- */
-// options: [{ date, time }] (no ids yet). Returns the new eventId.
+// options: [{ date, start, end }] (no ids yet). Returns the new eventId.
 export async function createEvent({ title, note, options }) {
     const uid = getUid() || (await authReady);
     const eventId = M.genId();
-    const withIds = options.map((o) => ({ optionId: M.genId(), date: o.date, time: o.time || '' }));
+    const withIds = options.map((o) => ({ optionId: M.genId(), date: o.date, start: o.start || '', end: o.end || '' }));
     await set(eventRef(eventId), {
         title: title.trim(),
         note: (note || '').trim(),
@@ -34,7 +34,7 @@ export async function createEvent({ title, note, options }) {
 export async function updateEventDefinition(eventId, { title, note, options }) {
     const withIds = options.map((o) => ({
         optionId: o.optionId && M.isValidId(o.optionId) ? o.optionId : M.genId(),
-        date: o.date, time: o.time || '',
+        date: o.date, start: o.start || '', end: o.end || '',
     }));
     await update(eventRef(eventId), {
         title: title.trim(),
@@ -46,17 +46,20 @@ export async function updateEventDefinition(eventId, { title, note, options }) {
 
 /* ---------- responses ---------- */
 // answers: { optionId: boolean } — only options the participant actually chose.
-// New response → fresh responseId owned by this uid. Editing → keep id/owner/createdAt.
-export async function saveResponse(eventId, { responseId, name, answers }) {
+// comment: optional free text (line breaks preserved). New response → fresh
+// responseId owned by this uid. Editing → keep id/owner/createdAt.
+export async function saveResponse(eventId, { responseId, name, comment, answers }) {
     const uid = getUid() || (await authReady);
     const clean = {};
     for (const [oid, v] of Object.entries(answers || {})) {
         if (M.isValidId(oid) && typeof v === 'boolean') clean[oid] = v;
     }
+    const text = (comment == null ? '' : String(comment));
     if (responseId) {
         // edit an existing response (must be your own or you must be admin — rules enforce)
         await update(responseRef(eventId, responseId), {
             name: name.trim(),
+            comment: text,
             answers: clean,
             updatedAt: serverTimestamp(),
         });
@@ -65,6 +68,7 @@ export async function saveResponse(eventId, { responseId, name, answers }) {
     const rid = M.genId();
     await set(responseRef(eventId, rid), {
         name: name.trim(),
+        comment: text,
         authorUid: uid,
         answers: clean,
         createdAt: serverTimestamp(),
@@ -118,7 +122,7 @@ export async function migrateLegacyToOwned(legacyEvent) {
     // Migration is therefore opt-in copy only; callers should warn the user.
     const uid = getUid() || (await authReady);
     const eventId = M.genId();
-    const withIds = legacyEvent.options.map((o) => ({ optionId: M.genId(), date: o.date, time: o.time || '' }))
+    const withIds = legacyEvent.options.map((o) => ({ optionId: M.genId(), date: o.date, start: o.start || '', end: o.end || '' }))
         .filter((o) => M.isValidDate(o.date));
     if (withIds.length === 0) return null;
     await set(eventRef(eventId), {

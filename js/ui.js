@@ -184,19 +184,51 @@ export function renderToggles(event, draftAnswers, onToggle) {
     });
 }
 
-/* ---------- option editor list ---------- */
-export function renderOptEditor(draftOptions, onRemove) {
+/* ---------- option editor list (with reorder) ---------- */
+export function renderOptEditor(draftOptions, { onRemove, onMove }) {
     const ul = $('optList');
     ul.replaceChildren();
     draftOptions.forEach((o, i) => {
         const li = document.createElement('li');
         const span = document.createElement('span');
         span.textContent = o.label;                    // safe
+        const tools = document.createElement('span');
+        tools.className = 'opt-tools';
+        tools.appendChild(moveBtn('↑', '上へ', () => onMove(i, -1), i === 0));
+        tools.appendChild(moveBtn('↓', '下へ', () => onMove(i, 1), i === draftOptions.length - 1));
         const rm = document.createElement('button');
         rm.type = 'button'; rm.className = 'rm'; rm.textContent = '✕'; rm.title = '削除';
         rm.addEventListener('click', () => onRemove(i));
-        li.append(span, rm);
+        tools.appendChild(rm);
+        li.append(span, tools);
         ul.appendChild(li);
+    });
+}
+function moveBtn(glyph, title, handler, disabled) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'rm move'; b.textContent = glyph; b.title = title;
+    b.disabled = !!disabled;
+    if (!disabled) b.addEventListener('click', handler);
+    return b;
+}
+
+/* ---------- participant comments (below the table; mobile-friendly) ---------- */
+export function renderComments(responses) {
+    const sec = $('commentsSection');
+    const list = $('commentsList');
+    list.replaceChildren();
+    const withComment = responses.filter((r) => (r.comment || '').trim() !== '');
+    if (withComment.length === 0) { sec.classList.add('hidden'); return; }
+    sec.classList.remove('hidden');
+    withComment.forEach((r) => {
+        const item = document.createElement('div');
+        item.className = 'comment-item';
+        const nm = document.createElement('div');
+        nm.className = 'comment-name'; nm.textContent = r.name;              // safe
+        const body = document.createElement('div');
+        body.className = 'comment-body'; body.textContent = r.comment;       // safe + pre-wrap via CSS
+        item.append(nm, body);
+        list.appendChild(item);
     });
 }
 

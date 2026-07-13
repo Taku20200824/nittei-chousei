@@ -42,11 +42,13 @@
             <label>候補（日付・時間を選んで追加）</label>
             <div class="date-adder">
                 <input type="date" id="dateInput" aria-label="候補の日付">
-                <input type="time" id="timeInput" aria-label="候補の時間（任意）">
+                <input type="time" id="startInput" aria-label="開始時間（任意）">
+                <span class="time-sep">–</span>
+                <input type="time" id="endInput" aria-label="終了時間（任意）">
                 <button type="button" class="btn ghost" id="addOptBtn">＋ 追加</button>
             </div>
             <ul class="opt-list" id="optList"></ul>
-            <p class="hint">日付（必要なら時間も）を選んで「追加」。時間は空でもOK（終日）。追加した候補ごとに ○ / ✕ で回答します。</p>
+            <p class="hint">日付を選んで「追加」。時間は空でもOK（終日）。開始のみ／開始–終了のどちらも可。同じ日に複数の時間帯を追加できます。↑↓で並べ替え。回答は ○ / ✕ の2択のみです。</p>
         </div>
         <div class="row-actions">
             <button class="btn" id="saveEventBtn">イベントを作成</button>
@@ -94,6 +96,10 @@
             <table id="resultsTable"></table>
         </div>
         <p class="empty hidden" id="noResp">まだ回答がありません。下のフォームから出欠を入力してください。</p>
+        <div class="comments hidden" id="commentsSection">
+            <h3 class="comments-title">コメント</h3>
+            <div id="commentsList"></div>
+        </div>
     </section>
 
     <!-- Respond -->
@@ -104,6 +110,10 @@
             <input id="nameInput" type="text" placeholder="例）田中" maxlength="40">
         </div>
         <div id="toggles" class="opt-toggles"></div>
+        <div class="field" style="margin-top:16px">
+            <label for="commentInput">コメント（任意）</label>
+            <textarea id="commentInput" maxlength="500" placeholder="例）19時以降なら参加できます"></textarea>
+        </div>
         <div class="row-actions" style="margin-top:16px">
             <button class="btn" id="submitRespBtn">登録する</button>
             <button class="btn ghost hidden" id="cancelRespBtn">編集をやめる</button>
